@@ -2,7 +2,7 @@ import EventEmitter from '../../eventEmitter/eventEmitter'
 import { TransactionDependencies } from '../dependencies'
 import { TransactionFormState } from '../transactionFormState'
 
-export class IntentsController extends EventEmitter {
+export class IntentController extends EventEmitter {
   constructor(
     private readonly dependencies: TransactionDependencies,
     private readonly formState: TransactionFormState
