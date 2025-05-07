@@ -1,13 +1,13 @@
-import { SwapController } from './controllers/swap'
-import { BridgeController } from './controllers/bridge'
+import { SwapAndBridgeController } from './controllers/swapAndBridge'
+import { IntentsController } from './controllers/intents'
 import { TransferController } from './controllers/transfer'
 import { TransactionFormState } from './transactionFormState'
 import { TransactionDependencies } from './dependencies'
 
 export class TransactionManager {
-  public swap: SwapController
+  public swapAndBridge: SwapAndBridgeController
 
-  public bridge: BridgeController
+  public intents: IntentsController
 
   public transfer: TransferController
 
@@ -18,8 +18,8 @@ export class TransactionManager {
     // just pass it down to the transaction form state
     this.formState = new TransactionFormState()
 
-    this.swap = new SwapController(dependencies, this.formState)
-    this.bridge = new BridgeController(dependencies, this.formState)
+    this.swapAndBridge = new SwapAndBridgeController(dependencies, this.formState)
+    this.intents = new IntentsController(dependencies, this.formState)
     this.transfer = new TransferController(dependencies, this.formState)
   }
 }

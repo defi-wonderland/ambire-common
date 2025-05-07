@@ -2,7 +2,7 @@ import EventEmitter from '../../eventEmitter/eventEmitter'
 import { TransactionDependencies } from '../dependencies'
 import { TransactionFormState } from '../transactionFormState'
 
-export class BridgeController extends EventEmitter {
+export class SwapAndBridgeController extends EventEmitter {
   constructor(
     private readonly dependencies: TransactionDependencies,
     private readonly formState: TransactionFormState
@@ -11,8 +11,13 @@ export class BridgeController extends EventEmitter {
   }
 
   get isFormEmpty() {
-    // only field for a Bridge transaction
-    return !this.formState.fromChainId || !this.formState.toChainId || !this.formState.fromAmount
+    // only field for a Swap transaction
+    return (
+      !this.formState.fromChainId ||
+      !this.formState.toChainId ||
+      !this.formState.fromAmount ||
+      !this.formState.toAmount
+    )
   }
 
   // doSomething() {

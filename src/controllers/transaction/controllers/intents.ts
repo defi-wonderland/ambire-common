@@ -2,7 +2,7 @@ import EventEmitter from '../../eventEmitter/eventEmitter'
 import { TransactionDependencies } from '../dependencies'
 import { TransactionFormState } from '../transactionFormState'
 
-export class SwapController extends EventEmitter {
+export class IntentsController extends EventEmitter {
   constructor(
     private readonly dependencies: TransactionDependencies,
     private readonly formState: TransactionFormState
@@ -11,13 +11,8 @@ export class SwapController extends EventEmitter {
   }
 
   get isFormEmpty() {
-    // only field for a Swap transaction
-    return (
-      !this.formState.fromChainId ||
-      !this.formState.toChainId ||
-      !this.formState.fromAmount ||
-      !this.formState.toAmount
-    )
+    // only field for an Intent transaction
+    return !this.formState.fromChainId || !this.formState.toChainId || !this.formState.fromAmount
   }
 
   // doSomething() {
