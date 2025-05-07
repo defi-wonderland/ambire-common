@@ -10,11 +10,6 @@ export class TransferController extends EventEmitter {
     super()
   }
 
-  get isFormEmpty() {
-    // only field for a Transfer transaction
-    return !this.formState.fromChainId || !this.formState.toChainId
-  }
-
   // doSomething() {
   //   Access dependencies like this
   //   this.dependencies.networks

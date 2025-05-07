@@ -10,11 +10,6 @@ export class IntentsController extends EventEmitter {
     super()
   }
 
-  get isFormEmpty() {
-    // only field for an Intent transaction
-    return !this.formState.fromChainId || !this.formState.toChainId || !this.formState.fromAmount
-  }
-
   // doSomething() {
   //   Access dependencies like this
   //   this.dependencies.networks

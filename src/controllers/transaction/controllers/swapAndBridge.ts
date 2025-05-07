@@ -10,16 +10,6 @@ export class SwapAndBridgeController extends EventEmitter {
     super()
   }
 
-  get isFormEmpty() {
-    // only field for a Swap transaction
-    return (
-      !this.formState.fromChainId ||
-      !this.formState.toChainId ||
-      !this.formState.fromAmount ||
-      !this.formState.toAmount
-    )
-  }
-
   // doSomething() {
   //   Access dependencies like this
   //   this.dependencies.networks
