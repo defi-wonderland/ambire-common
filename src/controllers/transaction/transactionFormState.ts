@@ -47,6 +47,7 @@ const DEFAULT_VALIDATION_FORM_MSGS = {
 const DEFAULT_ADDRESS_STATE = {
   fieldValue: '',
   ensAddress: '',
+  interopAddress: '',
   isDomainResolving: false
 }
 const HARD_CODED_CURRENCY = 'usd'
