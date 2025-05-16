@@ -72,6 +72,7 @@ export class TransactionManagerController extends EventEmitter {
       }
 
       this.transactionType = 'swapAndBridge'
+      return
     }
 
     this.transactionType = 'error'
