@@ -55,7 +55,7 @@ export class TransactionManagerController extends EventEmitter {
     this.transactionType = 'intent'
 
     if (this.formState.fromChainId === this.formState.toChainId) {
-      if (this.formState.toSelectedToken?.name === this.formState.fromSelectedToken?.name) {
+      if (this.formState.toSelectedToken?.address === this.formState.fromSelectedToken?.address) {
         if (
           this.formState.addressState.fieldValue === this.dependencies.selectedAccount.account?.addr
         ) {
@@ -68,7 +68,7 @@ export class TransactionManagerController extends EventEmitter {
 
       this.transactionType = 'swap'
     } else if (this.formState.fromChainId !== this.formState.toChainId) {
-      if (this.formState.toSelectedToken?.name === this.formState.fromSelectedToken?.name) {
+      if (this.formState.toSelectedToken?.address === this.formState.fromSelectedToken?.address) {
         this.transactionType = 'intent'
         return
       }
