@@ -52,8 +52,6 @@ export class TransactionManagerController extends EventEmitter {
    * Error: Same address, same chain, same token -> type: error
    */
   private handleFormUpdate() {
-    this.transactionType = 'intent'
-
     if (this.formState.fromChainId === this.formState.toChainId) {
       if (this.formState.toSelectedToken?.address === this.formState.fromSelectedToken?.address) {
         if (
