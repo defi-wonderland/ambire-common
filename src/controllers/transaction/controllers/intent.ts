@@ -12,11 +12,9 @@ export class IntentController extends EventEmitter {
     private readonly formState: TransactionFormState
   ) {
     super()
-
-    this.formState.onUpdate(this.handleFormStateUpdate.bind(this), 'formState-update')
   }
 
-  private async handleFormStateUpdate() {
+  public async getProtocolQuote() {
     const currentState = this.formState.state
 
     // if (this.shouldRefetchQuotes(currentState)) {

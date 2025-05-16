@@ -1,17 +1,11 @@
-import { SwapAndBridgeController } from './controllers/swapAndBridge'
 import { IntentController } from './controllers/intent'
-import { TransferController } from './controllers/transfer'
 import { TransactionDependencies } from './dependencies'
 import { TransactionFormState } from './transactionFormState'
 
 import EventEmitter from '../eventEmitter/eventEmitter'
 
 export class TransactionManagerController extends EventEmitter {
-  public swapAndBridge: SwapAndBridgeController
-
   public intent: IntentController
-
-  public transfer: TransferController
 
   public formState: TransactionFormState
 
@@ -26,20 +20,22 @@ export class TransactionManagerController extends EventEmitter {
     this.dependencies = { ...dependencies, interopSDK: null }
 
     this.formState = new TransactionFormState(dependencies)
-    this.swapAndBridge = new SwapAndBridgeController(dependencies, this.formState)
     this.intent = new IntentController(dependencies, this.formState)
-    this.transfer = new TransferController(dependencies, this.formState)
 
-    this.controllers = [this.formState, this.swapAndBridge, this.intent, this.transfer]
+    this.controllers = [this.formState]
 
     this.registerControllerUpdates()
   }
 
   private registerControllerUpdates(): void {
     this.controllers.forEach((controller) => {
-      controller.onUpdate(() => {
+      controller.onUpdate(async () => {
         if (controller.constructor.name === 'TransactionFormState') {
-          this.handleFormUpdate()
+          try {
+            await this.handleFormUpdate()
+          } catch (error: any) {
+            this.emitError({ error, level: 'silent', message: error?.message })
+          }
         }
         // when any controller updates, propagate through the manager
         this.emitUpdate()
@@ -54,7 +50,7 @@ export class TransactionManagerController extends EventEmitter {
    * Cross-chain swapAndBridge: different chain, different token -> type: swapAndBridge
    * Error: Same address, same chain, same token -> type: error
    */
-  private handleFormUpdate() {
+  private async handleFormUpdate() {
     if (this.formState.fromChainId === this.formState.toChainId) {
       if (this.formState.toSelectedToken?.address === this.formState.fromSelectedToken?.address) {
         if (
@@ -71,6 +67,7 @@ export class TransactionManagerController extends EventEmitter {
     } else if (this.formState.fromChainId !== this.formState.toChainId) {
       if (this.formState.toSelectedToken?.address === this.formState.fromSelectedToken?.address) {
         this.transactionType = 'intent'
+        await this.intent.getProtocolQuote()
         return
       }
 
@@ -87,9 +84,7 @@ export class TransactionManagerController extends EventEmitter {
       ...super.toJSON(),
       transactionType: this.transactionType,
       formState: this.formState.toJSON(),
-      swapAndBridge: this.swapAndBridge.toJSON(),
-      intent: this.intent.toJSON(),
-      transfer: this.transfer.toJSON()
+      intent: this.intent.toJSON()
     }
   }
 }
