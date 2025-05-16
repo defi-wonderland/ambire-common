@@ -4,7 +4,7 @@ import { testnetNetworks } from '../../consts/testnetNetworks'
 import { FEE_COLLECTOR } from '../../consts/addresses'
 import { validateSendTransferAddress } from '../../services/validations'
 import { Account } from '../../interfaces/account'
-import { AddressState } from '../../interfaces/domains'
+import { ExtendedAddressState } from '../../interfaces/interop'
 import {
   CachedSupportedChains,
   CachedTokenListKey,
@@ -82,7 +82,7 @@ export class TransactionFormState extends EventEmitter {
 
   toChainId: number | null = null
 
-  addressState: AddressState & { interopAddress: string } = { ...DEFAULT_ADDRESS_STATE }
+  addressState: ExtendedAddressState = { ...DEFAULT_ADDRESS_STATE }
 
   isRecipientAddressUnknown = false
 
