@@ -22,6 +22,9 @@ export class TransactionManagerController extends EventEmitter {
   constructor(private dependencies: TransactionDependencies) {
     super()
 
+    // TODO: intialize interopSDK here
+    this.dependencies = { ...dependencies, interopSDK: null }
+
     this.formState = new TransactionFormState(dependencies)
     this.swapAndBridge = new SwapAndBridgeController(dependencies, this.formState)
     this.intent = new IntentController(dependencies, this.formState)
