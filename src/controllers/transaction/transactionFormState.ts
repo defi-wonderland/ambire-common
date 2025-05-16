@@ -82,7 +82,7 @@ export class TransactionFormState extends EventEmitter {
 
   toChainId: number | null = null
 
-  addressState: AddressState = { ...DEFAULT_ADDRESS_STATE }
+  addressState: AddressState & { interopAddress: string } = { ...DEFAULT_ADDRESS_STATE }
 
   isRecipientAddressUnknown = false
 
