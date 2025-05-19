@@ -34,13 +34,13 @@ export class IntentController extends EventEmitter {
       const rawQuote = (await this.getQuotes(input, options)) as any
 
       const finalQuote = {
-        fromAsset: this.formState.portfolioTokenList.find(
-          (token: TokenResult) => token.address === rawQuote.inputToken
-        ),
+        fromAsset: this.formState.portfolioTokenList
+          .filter((token: TokenResult) => token.chainId === rawQuote.inputChainId)
+          .find((token: TokenResult) => token.address === rawQuote.inputToken),
         fromChainId: rawQuote.inputChainId,
-        toAsset: this.formState.portfolioTokenList.find(
-          (token: TokenResult) => token.address === rawQuote.outputToken
-        ),
+        toAsset: this.formState.portfolioTokenList
+          .filter((token: TokenResult) => token.chainId === rawQuote.outputChainId)
+          .find((token: TokenResult) => token.address === rawQuote.outputToken),
         toChainId: rawQuote.outputChainId,
         selectedRouteSteps: [],
         routes: [],
