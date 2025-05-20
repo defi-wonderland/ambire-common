@@ -1,5 +1,5 @@
 import EmittableError from '../../classes/EmittableError'
-import { ODYSSEY_CHAIN_ID, networks as predefinedNetworks } from '../../consts/networks'
+import { networks as predefinedNetworks } from '../../consts/networks'
 import { Fetch } from '../../interfaces/fetch'
 import {
   AddNetworkRequestParams,
@@ -75,7 +75,7 @@ export class NetworksController extends EventEmitter {
     return !!Object.keys(this.#networks).length
   }
 
-  get networks(): Network[] {
+  get allNetworks(): Network[] {
     return predefinedNetworks
     if (!Object.keys(this.#networks).length) return predefinedNetworks
 
@@ -102,6 +102,14 @@ export class NetworksController extends EventEmitter {
       )
       return network
     })
+  }
+
+  get networks(): Network[] {
+    return this.allNetworks.filter((network) => !network.disabled)
+  }
+
+  get disabledNetworks(): Network[] {
+    return this.allNetworks.filter((network) => network.disabled)
   }
 
   /**
@@ -203,11 +211,15 @@ export class NetworksController extends EventEmitter {
         const chainId = BigInt(_chainId)
         const relayerNetwork = mapRelayerNetworkConfigToAmbireNetwork(chainId, network)
         const storedNetwork = Object.values(networksInStorage).find((n) => n.chainId === chainId)
+        const disabledByDefault = relayerNetwork.disabledByDefault
+        // Remove values that should not be stored
+        delete relayerNetwork.disabledByDefault
 
         if (!storedNetwork) {
           updatedNetworks[chainId.toString()] = {
             ...(predefinedNetworks.find((n) => n.chainId === relayerNetwork.chainId) || {}),
-            ...relayerNetwork
+            ...relayerNetwork,
+            disabled: !!disabledByDefault
           }
           return
         }
@@ -226,14 +238,14 @@ export class NetworksController extends EventEmitter {
           updatedNetworks[chainId.toString()] = {
             ...(predefinedNetworks.find((n) => n.chainId === relayerNetwork.chainId) || {}),
             ...relayerNetwork,
-            rpcUrls: [...new Set([...relayerNetwork.rpcUrls, ...storedNetwork.rpcUrls])],
-            iconUrls: relayerNetwork.iconUrls
+            rpcUrls: [...new Set([...relayerNetwork.rpcUrls, ...storedNetwork.rpcUrls])]
           }
         } else {
           updatedNetworks[chainId.toString()] = {
             ...storedNetwork,
             rpcUrls: [...new Set([...relayerNetwork.rpcUrls, ...storedNetwork.rpcUrls])],
-            iconUrls: relayerNetwork.iconUrls
+            iconUrls: relayerNetwork.iconUrls,
+            predefined: relayerNetwork.predefined
           }
         }
       })
@@ -253,11 +265,6 @@ export class NetworksController extends EventEmitter {
         // Update the hasRelayer flag to false just in case
         if (!predefinedChainIds.includes(network.chainId.toString()) && network.predefined) {
           updatedNetworks[chainId] = { ...network, predefined: false, hasRelayer: false }
-        }
-
-        // Special case: Set the platformId for Odyssey chain
-        if (network.chainId === ODYSSEY_CHAIN_ID) {
-          updatedNetworks[chainId] = { ...network, platformId: 'ethereum' }
         }
       })
     } catch (e: any) {
@@ -352,7 +359,7 @@ export class NetworksController extends EventEmitter {
       return
     }
 
-    const chainIds = this.networks.map((net) => net.chainId)
+    const chainIds = this.allNetworks.map((net) => net.chainId)
     // make sure the id and chainId of the network are unique
     if (chainIds.indexOf(BigInt(network.chainId)) !== -1) {
       throw new EmittableError({
@@ -393,7 +400,7 @@ export class NetworksController extends EventEmitter {
 
     if (!Object.keys(network).length) return
 
-    const networkData = this.networks.find((n) => n.chainId === chainId)
+    const networkData = this.allNetworks.find((n) => n.chainId === chainId)
     const changedNetwork: Network = Object.keys(network).reduce((acc, key) => {
       if (!networkData) return acc
 
@@ -482,6 +489,9 @@ export class NetworksController extends EventEmitter {
     await this.withStatus('updateNetwork', () => this.#updateNetwork(network, chainId))
   }
 
+  /**
+   * @deprecated - users can no longer remove networks from the UI
+   */
   async removeNetwork(chainId: ChainId) {
     await this.initialLoadPromise
 
@@ -497,7 +507,9 @@ export class NetworksController extends EventEmitter {
       ...this,
       ...super.toJSON(),
       isInitialized: this.isInitialized,
-      networks: this.networks
+      networks: this.networks,
+      disabledNetworks: this.disabledNetworks,
+      allNetworks: this.allNetworks
     }
   }
 }
