@@ -1,0 +1,3 @@
+[submodule "src/interop-sdk"]
+	path = src/interop-sdk
+	url = git@gh-defi:defi-wonderland/interop-sdk.git
