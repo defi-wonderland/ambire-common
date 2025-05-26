@@ -22,7 +22,8 @@
     "events": "^3.3.0",
     "js-yaml": "^4.1.0",
     "scrypt-js": "^3.0.1",
-    "uuid": "9.0.0"
+    "uuid": "9.0.0",
+    "@interop-sdk/addresses": "file:./src/interop-sdk/packages/addresses"
   },
   "peerDependencies": {
     "@ambire/signature-validator": "^1.0.3",
