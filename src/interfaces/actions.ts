@@ -47,6 +47,16 @@ export type SwapAndBridgeAction = {
   }
 }
 
+export type IntentAction = {
+  id: UserRequest['id']
+  type: 'intent'
+  userRequest: {
+    meta: {
+      accountAddr: Account['addr']
+    }
+  }
+}
+
 export type Action =
   | SwitchAccountAction
   | AccountOpAction
@@ -54,3 +64,4 @@ export type Action =
   | BenzinAction
   | DappRequestAction
   | SwapAndBridgeAction
+  | IntentAction
