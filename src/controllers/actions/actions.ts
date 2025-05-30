@@ -8,8 +8,7 @@ import {
   DappRequestAction,
   SignMessageAction,
   SwapAndBridgeAction,
-  SwitchAccountAction,
-  IntentAction
+  SwitchAccountAction
 } from '../../interfaces/actions'
 import { NotificationManager } from '../../interfaces/notification'
 import { WindowManager, WindowProps } from '../../interfaces/window'
@@ -29,8 +28,7 @@ export type {
   DappRequestAction,
   SignMessageAction,
   SwitchAccountAction,
-  SwapAndBridgeAction,
-  IntentAction
+  SwapAndBridgeAction
 }
 
 export type ActionPosition = 'first' | 'last'
@@ -103,9 +101,6 @@ export class ActionsController extends EventEmitter {
         return a.userRequest.meta.switchToAccountAddr !== this.#selectedAccount.account?.addr
       }
       if (a.type === 'swapAndBridge') {
-        return a.userRequest.meta.accountAddr === this.#selectedAccount.account?.addr
-      }
-      if (a.type === 'intent') {
         return a.userRequest.meta.accountAddr === this.#selectedAccount.account?.addr
       }
 
@@ -371,10 +366,6 @@ export class ActionsController extends EventEmitter {
         return a.userRequest.meta.switchToAccountAddr !== address
       }
       if (a.type === 'swapAndBridge') {
-        return a.userRequest.meta.accountAddr !== address
-      }
-
-      if (a.type === 'intent') {
         return a.userRequest.meta.accountAddr !== address
       }
 
