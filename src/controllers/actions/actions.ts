@@ -1,5 +1,4 @@
-/* eslint-disable @typescript-eslint/no-floating-promises */
-
+import EmittableError from '../../classes/EmittableError'
 import { Account } from '../../interfaces/account'
 import {
   AccountOpAction,
@@ -35,10 +34,6 @@ export type ActionPosition = 'first' | 'last'
 
 export type ActionExecutionType = 'queue' | 'queue-but-open-action-window' | 'open-action-window'
 
-const CUSTOM_WINDOW_SIZE = {
-  width: 720,
-  height: 800
-}
 const SWAP_AND_BRIDGE_WINDOW_SIZE = {
   width: 640,
   height: 640
@@ -65,6 +60,7 @@ export class ActionsController extends EventEmitter {
     windowProps: WindowProps
     openWindowPromise?: Promise<WindowProps>
     focusWindowPromise?: Promise<WindowProps>
+    closeWindowPromise?: Promise<void>
     loaded: boolean
     pendingMessage: {
       message: string
@@ -100,12 +96,37 @@ export class ActionsController extends EventEmitter {
       if (a.type === 'switchAccount') {
         return a.userRequest.meta.switchToAccountAddr !== this.#selectedAccount.account?.addr
       }
-      if (a.type === 'swapAndBridge') {
+      if (a.type === 'swapAndBridge' || a.type === 'transfer') {
         return a.userRequest.meta.accountAddr === this.#selectedAccount.account?.addr
       }
 
       return true
     })
+  }
+
+  async #handleActionWindowClose(winId: number) {
+    if (
+      winId === this.actionWindow.windowProps?.id ||
+      (!this.visibleActionsQueue.length && this.currentAction && this.actionWindow.windowProps)
+    ) {
+      this.actionWindow.windowProps = null
+      this.actionWindow.loaded = false
+      this.actionWindow.pendingMessage = null
+      this.currentAction = null
+
+      this.actionsQueue = this.actionsQueue.filter((a) => a.type === 'accountOp')
+      if (this.visibleActionsQueue.length) {
+        await this.#notificationManager.create({
+          title:
+            this.actionsQueue.length > 1
+              ? `${this.actionsQueue.length} transactions queued`
+              : 'Transaction queued',
+          message: 'Queued pending transactions are available on your Dashboard.'
+        })
+      }
+      this.#onActionWindowClose()
+      this.emitUpdate()
+    }
   }
 
   constructor({
@@ -127,28 +148,11 @@ export class ActionsController extends EventEmitter {
     this.#onActionWindowClose = onActionWindowClose
 
     this.#windowManager.event.on('windowRemoved', async (winId: number) => {
-      if (
-        winId === this.actionWindow.windowProps?.id ||
-        (!this.visibleActionsQueue.length && this.currentAction && this.actionWindow.windowProps)
-      ) {
-        this.actionWindow.windowProps = null
-        this.actionWindow.loaded = false
-        this.actionWindow.pendingMessage = null
-        this.currentAction = null
+      // When windowManager.focus is called, it may close and reopen the action window as part of its fallback logic.
+      // To avoid prematurely running the cleanup logic during that transition, we wait for focusWindowPromise to resolve.
+      await this.actionWindow.focusWindowPromise
 
-        this.actionsQueue = this.actionsQueue.filter((a) => a.type === 'accountOp')
-        if (this.visibleActionsQueue.length) {
-          await this.#notificationManager.create({
-            title:
-              this.actionsQueue.length > 1
-                ? `${this.actionsQueue.length} transactions queued`
-                : 'Transaction queued',
-            message: 'Queued pending transactions are available on your Dashboard.'
-          })
-        }
-        this.#onActionWindowClose()
-        this.emitUpdate()
-      }
+      await this.#handleActionWindowClose(winId)
     })
 
     this.#windowManager.event.on('windowFocusChange', async (winId: number) => {
@@ -167,8 +171,8 @@ export class ActionsController extends EventEmitter {
     })
   }
 
-  addOrUpdateAction(
-    newAction: Action,
+  async addOrUpdateActions(
+    newActions: Action[],
     position: ActionPosition = 'last',
     executionType: ActionExecutionType = 'open-action-window'
   ) {
@@ -186,84 +190,101 @@ export class ActionsController extends EventEmitter {
       this.currentAction = null
     }
 
-    const actionIndex = this.actionsQueue.findIndex((a) => a.id === newAction.id)
-    if (actionIndex !== -1) {
-      this.actionsQueue[actionIndex] = newAction
-      if (executionType !== 'queue') {
-        let currentAction = null
+    newActions.forEach((newAction) => {
+      const actionIndex = this.actionsQueue.findIndex((a) => a.id === newAction.id)
+
+      if (actionIndex !== -1) {
+        this.actionsQueue[actionIndex] = newAction
         if (executionType === 'open-action-window') {
           this.sendNewActionMessage(newAction, 'updated')
-          currentAction = this.visibleActionsQueue.find((a) => a.id === newAction.id) || null
         } else if (executionType === 'queue-but-open-action-window') {
           this.sendNewActionMessage(newAction, 'queued')
-          currentAction = this.currentAction || this.visibleActionsQueue[0] || null
         }
-        this.#setCurrentAction(currentAction)
+      } else if (position === 'first') {
+        this.actionsQueue.unshift(newAction)
       } else {
-        this.emitUpdate()
+        this.actionsQueue.push(newAction)
       }
-      return
-    }
+    })
 
-    if (position === 'first') {
-      this.actionsQueue.unshift(newAction)
-    } else {
-      this.actionsQueue.push(newAction)
-    }
+    const nextAction = newActions[0]
 
     if (executionType !== 'queue') {
       let currentAction = null
       if (executionType === 'open-action-window') {
-        currentAction = this.visibleActionsQueue.find((a) => a.id === newAction.id) || null
+        currentAction = this.visibleActionsQueue.find((a) => a.id === nextAction.id) || null
       } else if (executionType === 'queue-but-open-action-window') {
-        this.sendNewActionMessage(newAction, 'queued')
+        this.sendNewActionMessage(nextAction, 'queued')
         currentAction = this.currentAction || this.visibleActionsQueue[0] || null
       }
-      this.#setCurrentAction(currentAction)
+      await this.#setCurrentAction(currentAction)
     } else {
       this.emitUpdate()
     }
   }
 
-  removeAction(actionId: Action['id'], shouldOpenNextAction: boolean = true) {
-    this.actionsQueue = this.actionsQueue.filter((a) => a.id !== actionId)
+  async addOrUpdateAction(
+    newAction: Action,
+    position?: ActionPosition,
+    executionType?: ActionExecutionType
+  ) {
+    await this.addOrUpdateActions([newAction], position, executionType)
+  }
+
+  async removeActions(actionIds: Action['id'][], shouldOpenNextAction: boolean = true) {
+    this.actionsQueue = this.actionsQueue.filter((a) => !actionIds.includes(a.id))
 
     if (!this.visibleActionsQueue.length) {
-      this.#setCurrentAction(null)
+      await this.#setCurrentAction(null)
     } else if (shouldOpenNextAction) {
-      this.#setCurrentAction(this.visibleActionsQueue[0])
+      await this.#setCurrentAction(this.visibleActionsQueue[0])
     }
   }
 
-  #setCurrentAction(nextAction: Action | null) {
-    this.currentAction = nextAction
+  async removeAction(actionId: Action['id'], shouldOpenNextAction?: boolean) {
+    await this.removeActions([actionId], shouldOpenNextAction)
+  }
 
-    if (nextAction && nextAction.id === this.currentAction?.id) {
-      this.openActionWindow()
-      this.emitUpdate()
+  async #awaitPendingPromises() {
+    await this.actionWindow.closeWindowPromise
+    await this.actionWindow.focusWindowPromise
+    await this.actionWindow.openWindowPromise
+  }
+
+  async #setCurrentAction(nextAction: Action | null) {
+    this.currentAction = nextAction
+    this.emitUpdate()
+
+    if (nextAction) {
+      await this.openActionWindow()
       return
     }
 
-    if (!this.currentAction) {
-      !!this.actionWindow.windowProps?.id &&
-        this.#windowManager.remove(this.actionWindow.windowProps.id)
-    } else {
-      this.openActionWindow()
-    }
-
-    this.emitUpdate()
+    await this.closeActionWindow()
   }
 
-  setCurrentActionById(actionId: Action['id']) {
+  async setCurrentActionById(actionId: Action['id']) {
     const action = this.visibleActionsQueue.find((a) => a.id.toString() === actionId.toString())
-    if (!action) return
-    this.#setCurrentAction(action)
+    if (!action)
+      throw new EmittableError({
+        message:
+          'Failed to open request window. If the issue persists, please reject the request and try again.',
+        level: 'major',
+        error: new Error(`Action not found. Id: ${actionId}`)
+      })
+    await this.#setCurrentAction(action)
   }
 
-  setCurrentActionByIndex(actionIndex: number) {
+  async setCurrentActionByIndex(actionIndex: number) {
     const action = this.visibleActionsQueue[actionIndex]
-    if (!action) return
-    this.#setCurrentAction(action)
+    if (!action)
+      throw new EmittableError({
+        message:
+          'Failed to open request window. If the issue persists, please reject the request and try again.',
+        level: 'major',
+        error: new Error(`Action not found. Index: ${actionIndex}`)
+      })
+    await this.#setCurrentAction(action)
   }
 
   sendNewActionMessage(newAction: Action, type: 'queued' | 'updated') {
@@ -279,17 +300,15 @@ export class ActionsController extends EventEmitter {
   }
 
   async openActionWindow() {
-    await this.actionWindow.focusWindowPromise
-    await this.actionWindow.openWindowPromise
+    await this.#awaitPendingPromises()
+
     if (this.actionWindow.windowProps) {
-      this.focusActionWindow()
+      await this.focusActionWindow()
     } else {
       let customSize
 
       if (this.currentAction?.type === 'swapAndBridge') {
         customSize = SWAP_AND_BRIDGE_WINDOW_SIZE
-      } else if (this.currentAction?.type !== 'dappRequest') {
-        customSize = CUSTOM_WINDOW_SIZE
       }
 
       try {
@@ -301,18 +320,25 @@ export class ActionsController extends EventEmitter {
             this.actionWindow.openWindowPromise = undefined
           })
         this.actionWindow.windowProps = await this.actionWindow.openWindowPromise
+
         this.emitUpdate()
       } catch (err) {
-        console.error('Error opening action window:', err)
+        this.emitError({
+          message:
+            'Failed to open a new request window. Please restart your browser if the issue persists.',
+          level: 'major',
+          error: err as Error
+        })
       }
     }
   }
 
   async focusActionWindow() {
-    await this.actionWindow.focusWindowPromise
-    await this.actionWindow.openWindowPromise
+    await this.#awaitPendingPromises()
+
     if (!this.visibleActionsQueue.length || !this.currentAction || !this.actionWindow.windowProps)
       return
+
     try {
       this.actionWindow.focusWindowPromise = this.#windowManager
         .focus(this.actionWindow.windowProps)
@@ -328,13 +354,31 @@ export class ActionsController extends EventEmitter {
 
       this.emitUpdate()
     } catch (err) {
-      console.error('Error focusing action window:', err)
+      this.emitError({
+        message:
+          'Failed to focus the request window. Please restart your browser if the issue persists.',
+        level: 'major',
+        error: err as Error
+      })
     }
   }
 
-  closeActionWindow() {
+  async closeActionWindow() {
+    await this.#awaitPendingPromises()
+
     if (!this.actionWindow.windowProps) return
-    this.#windowManager.remove(this.actionWindow.windowProps.id)
+
+    this.actionWindow.closeWindowPromise = this.#windowManager
+      .remove(this.actionWindow.windowProps.id)
+      .finally(() => {
+        this.actionWindow.closeWindowPromise = undefined
+      })
+
+    await this.actionWindow.closeWindowPromise
+
+    if (!this.actionWindow.windowProps) return
+
+    await this.#handleActionWindowClose(this.actionWindow.windowProps.id)
   }
 
   setWindowLoaded() {
