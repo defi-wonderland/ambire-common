@@ -60,7 +60,12 @@ const selectedAccountCtrl = new SelectedAccountController({
 
 const windowManager = mockWindowManager().windowManager
 
-const keystore = new KeystoreController(storageCtrl, { internal: KeystoreSigner }, windowManager)
+const keystore = new KeystoreController(
+  'default',
+  storageCtrl,
+  { internal: KeystoreSigner },
+  windowManager
+)
 
 const portfolioCtrl = new PortfolioController(
   storageCtrl,
@@ -77,6 +82,7 @@ const defiPositionsCtrl = new DefiPositionsController({
   fetch,
   storage: storageCtrl,
   selectedAccount: selectedAccountCtrl,
+  keystore,
   networks: networksCtrl,
   providers: providersCtrl
 })

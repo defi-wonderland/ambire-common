@@ -1,10 +1,10 @@
 import {
   ExtendedChain as LiFiExtendedChain,
-  LiFiStep,
+  Step as LiFiIncludedStep,
   Route as LiFiRoute,
   RoutesResponse as LiFiRoutesResponse,
   StatusResponse as LiFiRouteStatusResponse,
-  Step as LiFiIncludedStep,
+  LiFiStep,
   Token as LiFiToken,
   TokensResponse as LiFiTokensResponse
 } from '@lifi/types'
@@ -29,10 +29,12 @@ import {
   addCustomTokensIfNeeded,
   attemptToSortTokensByMarketCap,
   convertPortfolioTokenToSwapAndBridgeToToken,
+  lifiMapTokenAddr,
   sortNativeTokenFirst
 } from '../../libs/swapAndBridge/swapAndBridge'
 import { FEE_PERCENT, ZERO_ADDRESS } from '../socket/constants'
-import { disabledAssetSymbols, MAYAN_BRIDGE } from './consts'
+import { MAYAN_BRIDGE } from './consts'
+import { getHumanReadableErrorMessage } from './helpers'
 
 const normalizeLiFiTokenToSwapAndBridgeToToken = (
   token: LiFiToken,
@@ -40,7 +42,14 @@ const normalizeLiFiTokenToSwapAndBridgeToToken = (
 ): SwapAndBridgeToToken => {
   const { name, address, decimals, symbol, logoURI: icon } = token
 
-  return { name, address, decimals, symbol, icon, chainId: toChainId }
+  return {
+    name,
+    address: lifiMapTokenAddr(toChainId, address),
+    decimals,
+    symbol,
+    icon,
+    chainId: toChainId
+  }
 }
 
 const normalizeLiFiStepToSwapAndBridgeStep = (parentStep: LiFiStep): SwapAndBridgeStep[] => {
@@ -197,7 +206,9 @@ const normalizeLiFiStepToSwapAndBridgeSendTxRequest = (
     txType: 'eth_sendTransaction',
     userTxIndex: 0,
     userTxType: parentStep.includedSteps.some((s) => s.type === 'cross') ? 'fund-movr' : 'dex-swap',
-    value: parentStep.transactionRequest.value
+    value: parentStep.transactionRequest.value,
+    serviceFee:
+      parentStep?.estimate?.feeCosts?.filter((cost: { included: boolean }) => !cost.included) ?? []
   }
 }
 
@@ -271,8 +282,9 @@ export class LiFiAPI {
     }
 
     if (response.status === 429) {
-      const error = `Our service provider received too many requests, temporarily preventing your request from being processed. ${errorPrefix}`
-      throw new SwapAndBridgeProviderApiError(error)
+      const error =
+        'Our service provider received too many requests, temporarily preventing your request from being processed.'
+      throw new SwapAndBridgeProviderApiError(error, 'Rate limit reached, try again later.')
     }
 
     let responseBody: T
@@ -285,8 +297,14 @@ export class LiFiAPI {
     }
 
     if (!response.ok) {
-      const message = JSON.stringify(responseBody)
-      const error = `${errorPrefix} Our service provider upstream error: <${message}>`
+      const humanizedMessage = getHumanReadableErrorMessage(errorPrefix, responseBody)
+
+      if (humanizedMessage) {
+        throw new SwapAndBridgeProviderApiError(humanizedMessage)
+      }
+
+      const fallbackMessage = JSON.stringify(responseBody)
+      const error = `${errorPrefix} Our service provider upstream error: <${fallbackMessage}>`
       throw new SwapAndBridgeProviderApiError(error)
     }
 
@@ -395,28 +413,14 @@ export class LiFiAPI {
         'Quote requested, but missing required params. Error details: <to token details are missing>'
       )
 
-    // if the from asset is disabled, we don't return routes
-    // currently, stETH is disabled because returned routes for it
-    // always end up in a failure
-    if (disabledAssetSymbols.indexOf(fromAsset.symbol) !== -1) {
-      return {
-        fromAsset: convertPortfolioTokenToSwapAndBridgeToToken(fromAsset, fromChainId),
-        fromChainId,
-        toAsset,
-        toChainId,
-        selectedRouteSteps: [],
-        routes: []
-      }
-    }
-
     const fromAmountInUsd = getTokenUsdAmount(fromAsset, fromAmount)
     const slippage = Number(fromAmountInUsd) <= 400 ? '0.010' : '0.005'
     const body = {
       fromChainId: fromChainId.toString(),
       fromAmount: fromAmount.toString(),
-      fromTokenAddress,
+      fromTokenAddress: lifiMapTokenAddr(fromChainId, fromTokenAddress),
       toChainId: toChainId.toString(),
-      toTokenAddress,
+      toTokenAddress: lifiMapTokenAddr(toChainId, toTokenAddress),
       fromAddress: userAddress,
       toAddress: userAddress,
       options: {

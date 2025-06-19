@@ -40,6 +40,8 @@ export class SignMessageController extends EventEmitter {
 
   #signer: KeystoreSignerInterface | undefined
 
+  #onReset?: () => void
+
   isInitialized: boolean = false
 
   statuses: Statuses<keyof typeof STATUS_WRAPPED_METHODS> = STATUS_WRAPPED_METHODS
@@ -63,7 +65,8 @@ export class SignMessageController extends EventEmitter {
     networks: NetworksController,
     accounts: AccountsController,
     externalSignerControllers: ExternalSignerControllers,
-    invite: InviteController
+    invite: InviteController,
+    onReset?: () => void
   ) {
     super()
 
@@ -73,6 +76,7 @@ export class SignMessageController extends EventEmitter {
     this.#externalSignerControllers = externalSignerControllers
     this.#accounts = accounts
     this.#invite = invite
+    this.#onReset = onReset
   }
 
   async init({
@@ -111,6 +115,7 @@ export class SignMessageController extends EventEmitter {
   reset() {
     if (!this.isInitialized) return
 
+    if (this.#onReset) this.#onReset()
     this.isInitialized = false
     this.dapp = null
     this.messageToSign = null
@@ -226,7 +231,8 @@ export class SignMessageController extends EventEmitter {
               typedData: {
                 domain: this.messageToSign.content.domain,
                 types: this.messageToSign.content.types,
-                message: this.messageToSign.content.message
+                message: this.messageToSign.content.message,
+                primaryType: this.messageToSign.content.primaryType
               }
             }
           : { authorization: this.messageToSign.content.message })
