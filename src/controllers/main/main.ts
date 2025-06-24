@@ -438,6 +438,7 @@ export class MainController extends EventEmitter {
       serviceProviderAPI: lifiAPI,
       storage: this.storage,
       actions: this.actions,
+      relayerUrl,
       portfolioUpdate: () => {
         this.updateSelectedAccountPortfolio(true)
       },
@@ -1658,7 +1659,7 @@ export class MainController extends EventEmitter {
     amount: string,
     recipientAddress: string,
     selectedToken: TokenResult,
-    actionExecutionType: ActionExecutionType = 'open-action-window'
+    actionExecutionType: ActionExecutionType = 'queue' // always queue instead of open-action-window
   ) {
     await this.#initialLoadPromise
     if (!this.selectedAccount.account) return
