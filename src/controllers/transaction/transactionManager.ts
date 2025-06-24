@@ -1,9 +1,9 @@
 import { createPublicClient, http } from 'viem'
 import { sepolia, arbitrumSepolia, baseSepolia } from 'viem/chains'
+import { SignAccountOpController } from '../signAccountOp/signAccountOp'
 import { IntentController } from './controllers/intent'
 import { ControllersTransactionDependecies, TransactionDependencies } from './dependencies'
 import { TransactionFormState } from './transactionFormState'
-
 import EventEmitter from '../eventEmitter/eventEmitter'
 
 export class TransactionManagerController extends EventEmitter {
@@ -11,11 +11,11 @@ export class TransactionManagerController extends EventEmitter {
 
   public formState: TransactionFormState
 
-  private controllers: EventEmitter[] = []
-
   public transactionType: 'transfer' | 'intent' | 'swap' | 'swapAndBridge' | 'error' = 'transfer'
 
-  private dependencies: ControllersTransactionDependecies
+  public dependencies: ControllersTransactionDependecies
+
+  private controllers: EventEmitter[] = []
 
   private chainMap = [sepolia, arbitrumSepolia, baseSepolia]
 
@@ -31,6 +31,15 @@ export class TransactionManagerController extends EventEmitter {
     this.controllers = [this.formState]
 
     this.registerControllerUpdates()
+  }
+
+  public get signAccountOpController(): SignAccountOpController | null {
+    switch (this.transactionType) {
+      case 'intent':
+        return this.intent.getSignAccountOpController()
+      default:
+        return null
+    }
   }
 
   private registerControllerUpdates(): void {
@@ -107,7 +116,7 @@ export class TransactionManagerController extends EventEmitter {
     return {
       ...this,
       ...super.toJSON(),
-      transactionType: this.transactionType,
+      signAccountOpController: this.signAccountOpController, // need to be explicitly added otherwise it won't work
       formState: this.formState.toJSON(),
       intent: this.intent.toJSON()
     }
