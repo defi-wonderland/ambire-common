@@ -26,6 +26,7 @@ export type TransactionDependencies = {
   storage: StorageController
   actions: ActionsController
   invite: InviteController
+  relayerUrl: string
   userRequests: UserRequest[]
   portfolioUpdate?: Function
 }
