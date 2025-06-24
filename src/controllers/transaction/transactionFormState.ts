@@ -90,12 +90,6 @@ export class TransactionFormState extends EventEmitter {
 
   isRecipientHumanizerKnownTokenOrSmartContract = false
 
-  #selectedAccountData: Account | null = null
-
-  #addressBookContacts: Contacts = []
-
-  #humanizerInfo: HumanizerMeta | null = null
-
   fromSelectedToken: FromToken | null = null
 
   toSelectedToken: SwapAndBridgeToToken | null = null
@@ -118,6 +112,14 @@ export class TransactionFormState extends EventEmitter {
   errors: SwapAndBridgeErrorType[] = []
 
   isTokenListLoading: boolean = false
+
+  hasProceeded: boolean = false
+
+  #selectedAccountData: Account | null = null
+
+  #addressBookContacts: Contacts = []
+
+  #humanizerInfo: HumanizerMeta | null = null
 
   #shouldDebounceFlags: { [key: string]: boolean } = {}
 
@@ -282,7 +284,7 @@ export class TransactionFormState extends EventEmitter {
       // screen is opened after a some time
       this.dependencies.serviceProviderAPI.resetHealth()
     }
-    // this.hasProceeded = false
+    this.hasProceeded = false
   }
 
   checkIsRecipientAddressUnknown() {
@@ -544,7 +546,7 @@ export class TransactionFormState extends EventEmitter {
     // this.updateQuoteStatus = 'INITIAL'
     this.quoteRoutesStatuses = {}
     // this.destroySignAccountOp()
-    // this.hasProceeded = false
+    this.hasProceeded = false
     // this.isAutoSelectRouteDisabled = false
 
     if (shouldEmit) this.#emitUpdateIfNeeded()
@@ -729,6 +731,11 @@ export class TransactionFormState extends EventEmitter {
       })
     })
     this.#emitUpdateIfNeeded()
+  }
+
+  setUserProceeded(hasProceeded: boolean) {
+    this.hasProceeded = hasProceeded
+    this.emitUpdate()
   }
 
   #onRecipientAddressChange() {
