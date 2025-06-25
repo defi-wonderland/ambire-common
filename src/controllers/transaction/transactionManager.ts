@@ -42,6 +42,15 @@ export class TransactionManagerController extends EventEmitter {
     }
   }
 
+  public destroySignAccountOp() {
+    switch (this.transactionType) {
+      case 'intent':
+        return this.intent.destroySignAccountOp()
+      default:
+        return
+    }
+  }
+
   private registerControllerUpdates(): void {
     this.controllers.forEach((controller) => {
       controller.onUpdate(async () => {

@@ -2,11 +2,12 @@ import EventEmitter from '../../eventEmitter/eventEmitter'
 import { SignAccountOpController } from '../../signAccountOp/signAccountOp'
 import { TokenResult } from '../../../libs/portfolio'
 import { ControllersTransactionDependecies } from '../dependencies'
-import { TransactionFormState } from '../transactionFormState'
+import { FormStatus, TransactionFormState } from '../transactionFormState'
 import { randomId } from '../../../libs/humanizer/utils'
 import { getBaseAccount } from '../../../libs/account/getBaseAccount'
 import { batchCallsFromUserRequests } from '../../../libs/main/main'
 import { getAmbirePaymasterService } from '../../../libs/erc7677/erc7677'
+import { EstimationStatus } from '../../estimation/types'
 
 export class IntentController extends EventEmitter {
   public formPreviousState: any
@@ -172,6 +173,15 @@ export class IntentController extends EventEmitter {
       return
     }
 
+    if (
+      this.formState.formStatus !== FormStatus.ReadyToSubmit &&
+      (!this.signAccountOpController ||
+        this.signAccountOpController.estimation.status !== EstimationStatus.Success)
+    ) {
+      console.log('DEBUG: ', this.formState.formStatus, this.signAccountOpController)
+      return
+    }
+
     const fromToken = this.formState.fromSelectedToken as TokenResult
     const network = this.dependencies.networks.networks.find(
       (net) => net.chainId === fromToken.chainId
@@ -200,7 +210,7 @@ export class IntentController extends EventEmitter {
     })
 
     if (this.signAccountOpController) {
-      this.signAccountOpController.update({ calls: userRequestCalls })
+      this.signAccountOpController.update({ calls: [...userRequestCalls] })
       return
     }
 

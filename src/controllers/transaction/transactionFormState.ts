@@ -27,7 +27,6 @@ import {
 import { getHumanReadableSwapAndBridgeError } from '../../libs/swapAndBridge/swapAndBridgeErrorHumanizer'
 import { handleAmountConversion } from '../../libs/transaction/conversion'
 import { TokenResult } from '../../libs/portfolio'
-import SwapAndBridgeError from '../../classes/SwapAndBridgeError'
 import EventEmitter from '../eventEmitter/eventEmitter'
 import { Contacts } from '../addressBook/addressBook'
 
@@ -53,14 +52,23 @@ const DEFAULT_ADDRESS_STATE = {
 const HARD_CODED_CURRENCY = 'usd'
 const SUPPORTED_CHAINS_CACHE_THRESHOLD = 1000 * 60 * 60 * 24 // 1 day
 const TO_TOKEN_LIST_CACHE_THRESHOLD = 1000 * 60 * 60 * 4 // 4 hours
-const NETWORK_MISMATCH_MESSAGE =
-  'Swap & Bridge network configuration mismatch. Please try again or contact Ambire support.'
 
 type SwapAndBridgeErrorType = {
   id: 'to-token-list-fetch-failed' // ...
   title: string
   text?: string
   level: 'error' | 'warning'
+}
+
+export enum FormStatus {
+  Empty = 'empty',
+  Invalid = 'invalid',
+  FetchingRoutes = 'fetching-routes',
+  NoRoutesFound = 'no-routes-found',
+  InvalidRouteSelected = 'invalid-route-selected',
+  ReadyToEstimate = 'ready-to-estimate',
+  ReadyToSubmit = 'ready-to-submit',
+  Proceeded = 'proceeded'
 }
 
 export class TransactionFormState extends EventEmitter {
@@ -175,6 +183,7 @@ export class TransactionFormState extends EventEmitter {
       fromSelectedToken,
       toSelectedToken,
       toChainId,
+      toAmount,
       routePriority,
       addressState
     } = params
@@ -870,12 +879,33 @@ export class TransactionFormState extends EventEmitter {
     return formatUnits(getTokenAmount(tokenRef), tokenRef.decimals)
   }
 
+  get formStatus() {
+    if (this.hasProceeded) return FormStatus.Proceeded
+
+    if (this.isFormEmpty) return FormStatus.Empty
+    // if (this.validateFromAmount.message) return FormStatus.Invalid
+    // if (this.updateQuoteStatus === 'LOADING' && !this.quote) return FormStatus.FetchingRoutes
+    // if (!this.quote?.routes.filter((route) => !route.hasFailed).length)
+    //   return FormStatus.NoRoutesFound
+
+    // if (this.quote?.selectedRoute?.errorMessage) return FormStatus.InvalidRouteSelected
+
+    return FormStatus.ReadyToSubmit
+  }
+
   get isFormEmpty() {
+    console.log(
+      'DEBUG: isFormEmpty',
+      this.fromChainId,
+      this.toChainId,
+      this.fromAmount,
+      this.toAmount
+    )
     return (
       !this.fromChainId ||
       !this.toChainId ||
       !this.fromAmount ||
-      !this.toAmount ||
+      // !this.toAmount ||
       !this.addressState.fieldValue
     )
   }
@@ -901,6 +931,7 @@ export class TransactionFormState extends EventEmitter {
       ...this,
       ...super.toJSON(),
       name: 'TransactionFormState',
+      formStatus: this.formStatus,
       supportedChainIds: this.supportedChainIds,
       maxFromAmount: this.maxFromAmount,
       recipientAddress: this.recipientAddress
