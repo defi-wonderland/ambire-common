@@ -894,13 +894,6 @@ export class TransactionFormState extends EventEmitter {
   }
 
   get isFormEmpty() {
-    console.log(
-      'DEBUG: isFormEmpty',
-      this.fromChainId,
-      this.toChainId,
-      this.fromAmount,
-      this.toAmount
-    )
     return (
       !this.fromChainId ||
       !this.toChainId ||

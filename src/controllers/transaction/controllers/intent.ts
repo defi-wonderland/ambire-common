@@ -178,7 +178,6 @@ export class IntentController extends EventEmitter {
       (!this.signAccountOpController ||
         this.signAccountOpController.estimation.status !== EstimationStatus.Success)
     ) {
-      console.log('DEBUG: ', this.formState.formStatus, this.signAccountOpController)
       return
     }
 
@@ -209,8 +208,10 @@ export class IntentController extends EventEmitter {
       userRequests: this.dependencies.userRequests
     })
 
+    const calls = [...userRequestCalls]
+
     if (this.signAccountOpController) {
-      this.signAccountOpController.update({ calls: [...userRequestCalls] })
+      this.signAccountOpController.update({ calls })
       return
     }
 

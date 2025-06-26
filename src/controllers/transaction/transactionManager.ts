@@ -28,7 +28,7 @@ export class TransactionManagerController extends EventEmitter {
     this.formState = new TransactionFormState(this.dependencies)
     this.intent = new IntentController(this.dependencies, this.formState)
 
-    this.controllers = [this.formState]
+    this.controllers = [this.formState, this.intent]
 
     this.registerControllerUpdates()
   }
@@ -47,7 +47,7 @@ export class TransactionManagerController extends EventEmitter {
       case 'intent':
         return this.intent.destroySignAccountOp()
       default:
-        return
+        return null
     }
   }
 

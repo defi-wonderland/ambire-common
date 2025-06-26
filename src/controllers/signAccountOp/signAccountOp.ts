@@ -357,12 +357,6 @@ export class SignAccountOpController extends EventEmitter {
   }
 
   #setGasFeePayment() {
-    console.log('DEBUG: SETTING GAS FEE PAYMENT', {
-      paidBy: this.paidBy,
-      selectedFeeSpeed: this.selectedFeeSpeed,
-      feeTokenResult: this.feeTokenResult,
-      isInitialized: this.isInitialized
-    })
     if (this.isInitialized && this.paidBy && this.selectedFeeSpeed && this.feeTokenResult) {
       this.accountOp.gasFeePayment = this.#getGasFeePayment()
     }
@@ -711,25 +705,9 @@ export class SignAccountOpController extends EventEmitter {
     signedTransactionsCount?: number | null
     hasNewEstimation?: boolean
   }) {
-    console.log('DEBUG: UPDATE', {
-      gasPrices,
-      feeToken,
-      paidBy,
-      speed,
-      signingKeyAddr,
-      signingKeyType,
-      calls,
-      rbfAccountOps,
-      bundlerGasPrices,
-      blockGasLimit,
-      signedTransactionsCount,
-      hasNewEstimation
-    })
     try {
       // This must be at the top, otherwise it won't be updated because
       // most updates are frozen during the signing process
-      console.log('signedTransactionsCount', signedTransactionsCount)
-
       if (typeof signedTransactionsCount !== 'undefined') {
         this.signedTransactionsCount = signedTransactionsCount
         // If we add other exclusions we should figure out a way to emitUpdate only once
@@ -770,7 +748,6 @@ export class SignAccountOpController extends EventEmitter {
 
       if (gasPrices) this.gasPrices = gasPrices
 
-      console.log('DEBUG: feeToken && paidBy', feeToken, paidBy)
       if (feeToken && paidBy) {
         this.paidBy = paidBy
         this.feeTokenResult = feeToken
@@ -896,14 +873,6 @@ export class SignAccountOpController extends EventEmitter {
       this.emitUpdate()
       return
     }
-
-    console.log(
-      'DEBUG: UPDATE STATUS',
-      this.isInitialized,
-      this.accountOp.signingKeyAddr,
-      this.accountOp.signingKeyType,
-      this.accountOp.gasFeePayment
-    )
 
     if (
       this.isInitialized &&
@@ -1198,11 +1167,6 @@ export class SignAccountOpController extends EventEmitter {
   }
 
   #getGasFeePayment(): GasFeePayment | null {
-    console.log('DEBUG: #GETGASFEEPAYMENT', {
-      isInitialized: this.isInitialized,
-      paidBy: this.paidBy,
-      feeTokenResult: this.feeTokenResult
-    })
     if (!this.isInitialized) {
       this.emitError({
         level: 'major',
