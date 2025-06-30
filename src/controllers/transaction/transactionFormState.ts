@@ -182,14 +182,13 @@ export class TransactionFormState extends EventEmitter {
     let shouldUpdateToTokenList = false
 
     if (addressState) {
-      // If fieldValue is empty or invalid address the toChainId should be null, otherwise
+      // If fieldValue is empty or invalid address the toChainId should be the same as fromChainId, otherwise
       // and old state could be stored and transactionType could be wrong
       if (
         !addressState.interopAddress &&
         (!addressState.fieldValue || !isValidAddress(addressState.fieldValue))
       ) {
-        this.toChainId = null
-        this.toSelectedToken = null
+        this.toChainId = this.fromChainId
       }
 
       // If ensAddress is NOT empty or fieldValue is a valid address,
