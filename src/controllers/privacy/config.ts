@@ -1,4 +1,4 @@
-import { Address, parseEther } from 'viem'
+import { Address, parseEther, createPublicClient } from 'viem'
 import { Chain, sepolia } from 'viem/chains'
 
 // TODO: Fix this later
@@ -103,3 +103,5 @@ const testnetChainData: ChainData = {
 }
 
 export const chainData = testnetChainData
+
+export const getTransportRpcUrl = (chainId: number): string => testnetChainData[chainId].rpcUrl
