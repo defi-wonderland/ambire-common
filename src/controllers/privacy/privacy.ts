@@ -1,8 +1,7 @@
-import { type Address, type Chain, createPublicClient, type Hex } from 'viem'
-import { chainData, whitelistedChains } from './config'
-import type { ChainData } from './config'
-import EventEmitter from '../eventEmitter/eventEmitter'
+import { type Address, type Hex } from 'viem'
+import { type ChainData, chainData, whitelistedChains } from './config'
 import { KeystoreController } from '../keystore/keystore'
+import EventEmitter from '../eventEmitter/eventEmitter'
 
 export type PoolInfo = {
   chainId: number
@@ -11,9 +10,7 @@ export type PoolInfo = {
   deploymentBlock: bigint
 }
 
-type Hash = bigint & {
-  readonly __brand: unique symbol
-}
+type Hash = bigint
 
 type Secret = bigint & {
   readonly __brand: unique symbol
@@ -55,7 +52,7 @@ export class PrivacyController extends EventEmitter {
 
   selectedPool: PoolInfo | null = null
 
-  poolsByChain: any = []
+  poolsByChain: PoolInfo[] = []
 
   pools: any[] = []
 
