@@ -1,5 +1,5 @@
-import { Address, parseEther, createPublicClient } from 'viem'
-import { Chain, sepolia } from 'viem/chains'
+import { type Address, type HttpTransport, http, parseEther } from 'viem'
+import { type Chain, sepolia } from 'viem/chains'
 
 // TODO: Fix this later
 const ALCHEMY_KEY = '123545'
@@ -104,4 +104,6 @@ const testnetChainData: ChainData = {
 
 export const chainData = testnetChainData
 
-export const getTransportRpcUrl = (chainId: number): string => testnetChainData[chainId].rpcUrl
+export const getRpcUrl = (chainId: number) => {
+  return chainData[chainId].rpcUrl
+}
