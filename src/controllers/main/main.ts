@@ -399,7 +399,7 @@ export class MainController extends EventEmitter {
       this.providers,
       relayerUrl
     )
-    this.privacy = new PrivacyController()
+    this.privacy = new PrivacyController(this.keystore)
     this.domains = new DomainsController(
       this.providers.providers,
       this.networks.defaultNetworksMode

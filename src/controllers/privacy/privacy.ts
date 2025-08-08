@@ -2,6 +2,7 @@ import { type Address, type Chain, createPublicClient, type Hex } from 'viem'
 import { chainData, whitelistedChains } from './config'
 import type { ChainData } from './config'
 import EventEmitter from '../eventEmitter/eventEmitter'
+import { KeystoreController } from '../keystore/keystore'
 
 export type PoolInfo = {
   chainId: number
@@ -47,6 +48,8 @@ interface PoolAccount {
 
 // Extends EventEmitter when using in ambire-common
 export class PrivacyController extends EventEmitter {
+  #keystore: KeystoreController
+
   // Holds the initial load promise, so that one can wait until it completes
   #initialLoadPromise: Promise<void>
 
@@ -68,8 +71,10 @@ export class PrivacyController extends EventEmitter {
 
   selectedPoolAccount: PoolAccount | null = null
 
-  constructor() {
+  constructor(keystore: KeystoreController) {
     super()
+
+    this.#keystore = keystore
     this.#initialLoadPromise = this.#load()
   }
 
@@ -136,6 +141,16 @@ export class PrivacyController extends EventEmitter {
     this.selectedToken = ''
     this.selectedPool = null
     this.selectedPoolAccount = null
+  }
+
+  public setSecret() {
+    // this.#keystore.setPrivateSecret(key, secret)
+    // TODO: implement
+  }
+
+  public getSecret() {
+    // return this.#keystore.getPrivateSecret(key)
+    // TODO: implement
   }
 
   toJSON() {
