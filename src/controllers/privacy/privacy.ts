@@ -12,9 +12,7 @@ export type PoolInfo = {
 
 type Hash = bigint
 
-type Secret = bigint & {
-  readonly __brand: unique symbol
-}
+type Secret = bigint
 
 interface AccountCommitment {
   hash: Hash
