@@ -67,27 +67,22 @@ export class PrivacyController extends EventEmitter {
 
   constructor() {
     super()
-    // NOTA: no se hace ningún import ni uso de window aquí.
-    // Esto permite instanciar PrivacyController incluso en service workers.
   }
 
-  /** Public: inicializa el SDK. Llamar SOLO en contextos con `window` (UI/content script). */
   public async initSDK({ force = false } = {}): Promise<void> {
     if (this.#isInitialized && !force) return
-    // Evitar cargar en service worker / contextos sin window
+
     if (typeof window === 'undefined') {
       this.#initializationError = 'Cannot initialize SDK in service worker (no window).'
       throw new Error(this.#initializationError)
     }
 
     try {
-      // Dynamic import: evita que webpack/eval del SDK se ejecute en la carga del SW
       const sdkModule = await import('@0xbow/privacy-pools-core-sdk') // webpackChunkName: "privacy-pool-sdk"
       this.#sdkModule = sdkModule
 
       const { Circuits, PrivacyPoolSDK, DataService } = sdkModule
 
-      // Construir Circuits usando origin del cliente
       const currentBaseUrl = window.location.origin
       if (!currentBaseUrl) {
         throw new Error('SDK requires window.location.origin to be available')
@@ -104,7 +99,6 @@ export class PrivacyController extends EventEmitter {
         }
       })
 
-      // Instanciar SDK y DataService
       this.sdk = new PrivacyPoolSDK(circuits)
       this.#dataService = new DataService(dataServiceConfig)
       this.#isInitialized = true
@@ -126,17 +120,15 @@ export class PrivacyController extends EventEmitter {
     return this.#initializationError
   }
 
-  // ---------- Helper to ensure SDK is ready ----------
   private assertSdkInitialized() {
     if (!this.#isInitialized || !this.sdk || !this.#dataService || !this.#sdkModule) {
       throw new Error('SDK not initialized. Call initSDK() in a window context first.')
     }
   }
 
-  // ---------- The previously existing API methods now use the runtime SDK ----------
   public async generateRagequitProof(commitment: AccountCommitment): Promise<CommitmentProof> {
     this.assertSdkInitialized()
-    // Types rely on import type; runtime call uses this.#sdk
+
     return this.sdk.proveCommitment(
       commitment.value,
       commitment.label,
@@ -152,6 +144,7 @@ export class PrivacyController extends EventEmitter {
 
   public async generateWithdrawalProof(commitment: AccountCommitment, input: WithdrawalProofInput) {
     this.assertSdkInitialized()
+
     return this.sdk.proveWithdrawal(
       {
         preimage: {
@@ -212,9 +205,6 @@ export class PrivacyController extends EventEmitter {
     if (!this.#accountService) {
       throw new Error('AccountService not initialized')
     }
-    // ... mantuve la lógica original (no la repito para ahorrar espacio)
-    // Puedes pegar aquí el mismo bucle que ya tenías para construir poolAccounts
-    // (reutiliza this.getTimestampFromBlockNumber tal cual)
     return { poolAccounts: [], poolAccountsByChainScope: {} as Record<string, PoolAccount[]> } // placeholder
   }
 
