@@ -128,8 +128,6 @@ export class MainController extends EventEmitter {
    */
   #externalSignerControllers: ExternalSignerControllers = {}
 
-  privacy: PrivacyController
-
   // Subcontrollers
   networks: NetworksController
 
@@ -154,6 +152,8 @@ export class MainController extends EventEmitter {
   swapAndBridge: SwapAndBridgeController
 
   transfer: TransferController
+
+  privacy: PrivacyController
 
   signAccountOp: SignAccountOpController | null = null
 
@@ -352,6 +352,7 @@ export class MainController extends EventEmitter {
         await this.setContractsDeployedToTrueIfDeployed(network)
       }
     )
+
     this.swapAndBridge = new SwapAndBridgeController({
       accounts: this.accounts,
       keystore: this.keystore,
@@ -400,7 +401,6 @@ export class MainController extends EventEmitter {
       this.providers,
       relayerUrl
     )
-    this.privacy = new PrivacyController(this.keystore)
     this.domains = new DomainsController(
       this.providers.providers,
       this.networks.defaultNetworksMode
@@ -455,6 +455,8 @@ export class MainController extends EventEmitter {
         )
       }
     })
+
+    this.privacy = new PrivacyController(this.keystore)
   }
 
   /**
