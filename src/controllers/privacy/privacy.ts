@@ -16,8 +16,13 @@ import type {
 import type { Address, Hex } from 'viem'
 import type { KeystoreController } from '../keystore/keystore'
 import { type ChainData, chainData, whitelistedChains } from './config'
-import type { PrivacyFormUpdate } from '../../interfaces/privacy'
 import EventEmitter from '../eventEmitter/eventEmitter'
+
+interface PrivacyFormUpdate {
+  amount?: string
+  seedPhrase?: string
+  targetAddress?: string
+}
 
 type Hash = bigint
 
@@ -32,7 +37,7 @@ type RagequitEventWithTimestamp = RagequitEvent & {
   timestamp: bigint
 }
 
-export type PoolAccount = SDKPoolAccount & {
+type PoolAccount = SDKPoolAccount & {
   name: number
   balance: bigint
   isValid: boolean
