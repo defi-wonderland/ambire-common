@@ -145,7 +145,7 @@ export class PrivacyController extends EventEmitter {
 
       const { Circuits, PrivacyPoolSDK, DataService } = sdkModule
 
-      const circuits = new Circuits({ baseUrl, browser: false })
+      const circuits = new Circuits({ baseUrl })
 
       const dataServiceConfig: ChainConfig[] = this.poolsByChain.map((pool) => {
         return {
