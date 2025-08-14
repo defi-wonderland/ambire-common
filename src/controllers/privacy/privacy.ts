@@ -140,7 +140,6 @@ export class PrivacyController extends EventEmitter {
     console.log('Ambire privacy: initializing SDK')
 
     try {
-      // Lazy loading of SDK module
       const sdkModule = await import('@0xbow/privacy-pools-core-sdk') // webpackChunkName: "privacy-pool-sdk"
       this.#sdkModule = sdkModule
 
