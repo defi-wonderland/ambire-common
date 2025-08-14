@@ -16,6 +16,7 @@ import type {
 import type { Address, Hex } from 'viem'
 import type { KeystoreController } from '../keystore/keystore'
 import { type ChainData, chainData, whitelistedChains } from './config'
+import type { PrivacyFormUpdate } from '../../interfaces/privacy'
 import EventEmitter from '../eventEmitter/eventEmitter'
 
 type Hash = bigint
@@ -72,6 +73,8 @@ export class PrivacyController extends EventEmitter {
   #initialPromiseLoaded: boolean = false
 
   amount: string = ''
+
+  seedPhrase: string = ''
 
   targetAddress: Address | string = ''
 
@@ -163,10 +166,20 @@ export class PrivacyController extends EventEmitter {
     }
   }
 
-  private assertSdkInitialized() {
-    if (!this.#isInitialized || !this.#sdk || !this.#dataService || !this.#sdkModule) {
-      throw new Error('SDK not initialized. Call initSDK() in a window context first.')
+  public update({ amount, seedPhrase, targetAddress }: PrivacyFormUpdate) {
+    if (amount) {
+      this.amount = amount
     }
+
+    if (seedPhrase) {
+      this.seedPhrase = seedPhrase
+    }
+
+    if (targetAddress) {
+      this.targetAddress = targetAddress
+    }
+
+    this.emitUpdate()
   }
 
   public async generateRagequitProof(commitment: AccountCommitment): Promise<CommitmentProof> {
@@ -224,6 +237,10 @@ export class PrivacyController extends EventEmitter {
     if (this.#accountService) {
       await this.#accountService.retrieveHistory(this.pools as SDKPoolInfo[])
     }
+
+    console.log('Ambire ctrl: AccountService initialized', this.#accountService)
+
+    this.emitUpdate()
   }
 
   public createDepositSecrets(scope: Hash) {
@@ -257,6 +274,12 @@ export class PrivacyController extends EventEmitter {
       throw new Error('AccountService not initialized')
     }
     return { poolAccounts: [], poolAccountsByChainScope: {} as Record<string, PoolAccount[]> } // placeholder
+  }
+
+  private assertSdkInitialized() {
+    if (!this.#isInitialized || !this.#sdk || !this.#dataService || !this.#sdkModule) {
+      throw new Error('SDK not initialized. Call initSDK() in a window context first.')
+    }
   }
 
   get isInitialized(): boolean {
