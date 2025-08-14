@@ -542,7 +542,10 @@ export class RequestsController extends EventEmitter {
     }
   }
 
-  async #buildPrivateDepositUserRequest({ txList }: any) {
+  async #buildPrivateDepositUserRequest({
+    txList,
+    actionExecutionType = 'open-action-window'
+  }: any) {
     await this.initialLoadPromise
     if (!this.#selectedAccount.account) return
 
@@ -565,9 +568,9 @@ export class RequestsController extends EventEmitter {
     if (!userRequest) {
       this.emitError({
         level: 'major',
-        message: 'Unexpected error while building transfer request',
+        message: 'Unexpected error while building private deposit request',
         error: new Error(
-          'buildUserRequestFromTransferRequest: bad parameters passed to buildTransferUserRequest'
+          'buildPrivateDepositUserRequest: bad parameters passed to buildPrivateDepositUserRequest'
         )
       })
       return
@@ -575,7 +578,7 @@ export class RequestsController extends EventEmitter {
 
     await this.addUserRequests([userRequest], {
       actionPosition: 'last',
-      actionExecutionType: 'open-action-window'
+      actionExecutionType
     })
   }
 
