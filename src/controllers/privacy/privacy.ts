@@ -84,7 +84,6 @@ export class PrivacyController extends EventEmitter {
 
     this.#keystore = keystore
     this.#initialPromise = this.#load()
-
     this.emitUpdate()
   }
 
