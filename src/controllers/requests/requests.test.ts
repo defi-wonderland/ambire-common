@@ -9,6 +9,7 @@ import { Session } from '../../classes/session'
 import humanizerInfo from '../../consts/humanizer/humanizerInfo.json'
 import { networks } from '../../consts/networks'
 import { RPCProviders } from '../../interfaces/provider'
+import { IRequestsController } from '../../interfaces/requests'
 import { UserRequest } from '../../interfaces/userRequest'
 import { HumanizerMeta } from '../../libs/humanizer/interfaces'
 import { relayerCall } from '../../libs/relayerCall/relayerCall'
@@ -108,14 +109,15 @@ const prepareTest = async () => {
     () => {}
   )
 
+  const keystoreCtrl = new KeystoreController('default', storageCtrl, {}, windowManager)
+
   const selectedAccountCtrl = new SelectedAccountController({
     storage: storageCtrl,
-    accounts: accountsCtrl
+    accounts: accountsCtrl,
+    keystore: keystoreCtrl
   })
 
   const dappsCtrl = new DappsController(storageCtrl)
-
-  const keystoreCtrl = new KeystoreController('default', storageCtrl, {}, windowManager)
 
   const addressBookCtrl = new AddressBookController(storageCtrl, accountsCtrl, selectedAccountCtrl)
   const portfolioCtrl = new PortfolioController(
@@ -156,7 +158,7 @@ const prepareTest = async () => {
     relayerUrl
   )
 
-  const requestsController: RequestsController = {} as RequestsController
+  const requestsController: IRequestsController = {} as IRequestsController
 
   const swapAndBridgeCtrl = new SwapAndBridgeController({
     selectedAccount: selectedAccountCtrl,

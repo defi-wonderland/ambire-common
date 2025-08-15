@@ -2,14 +2,21 @@
 import { getAddress } from 'ethers'
 
 import { AMBIRE_ACCOUNT_FACTORY } from '../../consts/deploy'
-import { Account } from '../../interfaces/account'
+import { Account, IAccountsController } from '../../interfaces/account'
 import { Banner } from '../../interfaces/banner'
+import { IDefiPositionsController } from '../../interfaces/defiPositions'
+import { IKeystoreController } from '../../interfaces/keystore'
+import { INetworksController } from '../../interfaces/network'
+import { IPortfolioController } from '../../interfaces/portfolio'
+import { IProvidersController } from '../../interfaces/provider'
 import {
   CashbackStatus,
   CashbackStatusByAccount,
+  ISelectedAccountController,
   SelectedAccountPortfolio,
   SelectedAccountPortfolioByNetworks
 } from '../../interfaces/selectedAccount'
+import { IStorageController } from '../../interfaces/storage'
 import { isSmartAccount } from '../../libs/account/account'
 import {
   defiPositionsOnDisabledNetworksBannerId,
@@ -20,7 +27,6 @@ import { sortByValue } from '../../libs/defiPositions/helpers'
 import { getStakedWalletPositions } from '../../libs/defiPositions/providers'
 import { PositionsByProvider } from '../../libs/defiPositions/types'
 import { PortfolioGasTankResult } from '../../libs/portfolio/interfaces'
-// eslint-disable-next-line import/no-cycle
 import {
   getNetworksWithDeFiPositionsErrorErrors,
   getNetworksWithFailedRPCErrors,
@@ -28,16 +34,8 @@ import {
   SelectedAccountBalanceError
 } from '../../libs/selectedAccount/errors'
 import { calculateSelectedAccountPortfolio } from '../../libs/selectedAccount/selectedAccount'
-// eslint-disable-next-line import/no-cycle
-import { AccountsController } from '../accounts/accounts'
-// eslint-disable-next-line import/no-cycle
-import { DefiPositionsController } from '../defiPositions/defiPositions'
+import { getIsViewOnly } from '../../utils/accounts'
 import EventEmitter from '../eventEmitter/eventEmitter'
-import { NetworksController } from '../networks/networks'
-// eslint-disable-next-line import/no-cycle
-import { PortfolioController } from '../portfolio/portfolio'
-import { ProvidersController } from '../providers/providers'
-import { StorageController } from '../storage/storage'
 
 export const DEFAULT_SELECTED_ACCOUNT_PORTFOLIO = {
   tokens: [],
@@ -52,18 +50,20 @@ export const DEFAULT_SELECTED_ACCOUNT_PORTFOLIO = {
   pending: {}
 }
 
-export class SelectedAccountController extends EventEmitter {
-  #storage: StorageController
+export class SelectedAccountController extends EventEmitter implements ISelectedAccountController {
+  #storage: IStorageController
 
-  #accounts: AccountsController
+  #accounts: IAccountsController
 
-  #portfolio: PortfolioController | null = null
+  #portfolio: IPortfolioController | null = null
 
-  #defiPositions: DefiPositionsController | null = null
+  #defiPositions: IDefiPositionsController | null = null
 
-  #networks: NetworksController | null = null
+  #networks: INetworksController | null = null
 
-  #providers: ProvidersController | null = null
+  #keystore: IKeystoreController | null = null
+
+  #providers: IProvidersController | null = null
 
   account: Account | null = null
 
@@ -130,11 +130,20 @@ export class SelectedAccountController extends EventEmitter {
     return this.#_defiPositions
   }
 
-  constructor({ storage, accounts }: { storage: StorageController; accounts: AccountsController }) {
+  constructor({
+    storage,
+    accounts,
+    keystore
+  }: {
+    storage: IStorageController
+    accounts: IAccountsController
+    keystore: IKeystoreController
+  }) {
     super()
 
     this.#storage = storage
     this.#accounts = accounts
+    this.#keystore = keystore
 
     // eslint-disable-next-line @typescript-eslint/no-floating-promises
     this.initialLoadPromise = this.#load()
@@ -163,10 +172,10 @@ export class SelectedAccountController extends EventEmitter {
     networks,
     providers
   }: {
-    portfolio: PortfolioController
-    defiPositions: DefiPositionsController
-    networks: NetworksController
-    providers: ProvidersController
+    portfolio: IPortfolioController
+    defiPositions: IDefiPositionsController
+    networks: INetworksController
+    providers: IProvidersController
   }) {
     this.#portfolio = portfolio
     this.#defiPositions = defiPositions
@@ -340,6 +349,10 @@ export class SelectedAccountController extends EventEmitter {
 
   async updateCashbackStatus(skipUpdate?: boolean) {
     if (!this.#portfolio || !this.account || !this.portfolio.latest.gasTank?.result) return
+    const importedAccountKeys = this.#keystore?.getAccountKeys(this.account) || []
+
+    // Don't update cashback status for view-only accounts
+    if (getIsViewOnly(importedAccountKeys, this.account.associatedKeys)) return
 
     const accountId = this.account.addr
     const gasTankResult = this.portfolio.latest.gasTank.result as PortfolioGasTankResult
@@ -428,7 +441,7 @@ export class SelectedAccountController extends EventEmitter {
         func()
       } catch (error: any) {
         this.emitError({
-          level: 'minor',
+          level: 'silent',
           message: `The execution of ${funcName} in SelectedAccountController failed`,
           error
         })
@@ -491,8 +504,8 @@ export class SelectedAccountController extends EventEmitter {
     const errorBanners = getNetworksWithPortfolioErrorErrors({
       networks: this.#networks.networks,
       selectedAccountLatest: this.portfolio.latest,
-      providers: this.#providers.providers,
-      isAllReady: this.portfolio.isAllReady
+      isAllReady: this.portfolio.isAllReady,
+      providers: this.#providers.providers
     })
 
     this.#portfolioErrors = [...networksWithFailedRPCBanners, ...errorBanners]

@@ -2,35 +2,35 @@ import { ZeroAddress } from 'ethers'
 
 /* eslint-disable class-methods-use-this */
 import ErrorHumanizerError from '../../classes/ErrorHumanizerError'
+import { IAccountsController } from '../../interfaces/account'
+import { IActivityController } from '../../interfaces/activity'
+import { ErrorRef } from '../../interfaces/eventEmitter'
+import { IKeystoreController } from '../../interfaces/keystore'
+import { INetworksController } from '../../interfaces/network'
+import { IPortfolioController } from '../../interfaces/portfolio'
 import { RPCProvider } from '../../interfaces/provider'
 import { SignAccountOpError, Warning } from '../../interfaces/signAccountOp'
 import { BaseAccount } from '../../libs/account/BaseAccount'
 import { getBaseAccount } from '../../libs/account/getBaseAccount'
 import { AccountOp } from '../../libs/accountOp/accountOp'
-import { BROADCAST_OPTIONS } from '../../libs/broadcast/broadcast'
 import { getEstimation, getEstimationSummary } from '../../libs/estimate/estimate'
 import { FeePaymentOption, FullEstimationSummary } from '../../libs/estimate/interfaces'
 import { isPortfolioGasTankResult } from '../../libs/portfolio/helpers'
 import { BundlerSwitcher } from '../../services/bundlers/bundlerSwitcher'
 import { getIsViewOnly } from '../../utils/accounts'
-import { AccountsController } from '../accounts/accounts'
-import { ActivityController } from '../activity/activity'
-import EventEmitter, { ErrorRef } from '../eventEmitter/eventEmitter'
-import { KeystoreController } from '../keystore/keystore'
-import { NetworksController } from '../networks/networks'
-import { PortfolioController } from '../portfolio/portfolio'
+import EventEmitter from '../eventEmitter/eventEmitter'
 import { EstimationStatus } from './types'
 
 export class EstimationController extends EventEmitter {
-  #keystore: KeystoreController
+  #keystore: IKeystoreController
 
-  #accounts: AccountsController
+  #accounts: IAccountsController
 
-  #networks: NetworksController
+  #networks: INetworksController
 
   #provider: RPCProvider
 
-  #portfolio: PortfolioController
+  #portfolio: IPortfolioController
 
   status: EstimationStatus = EstimationStatus.Initial
 
@@ -50,17 +50,17 @@ export class EstimationController extends EventEmitter {
 
   #bundlerSwitcher: BundlerSwitcher
 
-  #activity: ActivityController
+  #activity: IActivityController
 
   #notFatalBundlerError?: Error
 
   constructor(
-    keystore: KeystoreController,
-    accounts: AccountsController,
-    networks: NetworksController,
+    keystore: IKeystoreController,
+    accounts: IAccountsController,
+    networks: INetworksController,
     provider: RPCProvider,
-    portfolio: PortfolioController,
-    activity: ActivityController,
+    portfolio: IPortfolioController,
+    activity: IActivityController,
     bundlerSwitcher: BundlerSwitcher
   ) {
     super()
@@ -167,14 +167,6 @@ export class EstimationController extends EventEmitter {
           .map((acc) => acc.addr)
       : []
 
-    // if broadcast but not confirmed for this network and an userOp,
-    // check if the nonces match. If they do, increment the current nonce
-    const activityUserOp = this.#activity.broadcastedButNotConfirmed.find(
-      (accOp) =>
-        accOp.chainId === network.chainId &&
-        accOp.gasFeePayment &&
-        accOp.gasFeePayment.broadcastOption === BROADCAST_OPTIONS.byBundler
-    )
     const estimation = await getEstimation(
       baseAcc,
       accountState,
@@ -188,8 +180,7 @@ export class EstimationController extends EventEmitter {
         if (!this) return
         this.estimationRetryError = e
         this.emitUpdate()
-      },
-      activityUserOp?.asUserOperation
+      }
     ).catch((e) => e)
 
     const isSuccess = !(estimation instanceof Error)

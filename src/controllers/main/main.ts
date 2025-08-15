@@ -4,24 +4,51 @@ import { getAddress } from 'ethers'
 
 import AmbireAccount7702 from '../../../contracts/compiled/AmbireAccount7702.json'
 import EmittableError from '../../classes/EmittableError'
+import ExternalSignerError from '../../classes/ExternalSignerError'
 import { Session } from '../../classes/session'
 import { AMBIRE_ACCOUNT_FACTORY, SINGLETON } from '../../consts/deploy'
 import {
   BIP44_LEDGER_DERIVATION_TEMPLATE,
   BIP44_STANDARD_DERIVATION_TEMPLATE
 } from '../../consts/derivation'
+import { FeatureFlags } from '../../consts/featureFlags'
 import humanizerInfo from '../../consts/humanizer/humanizerInfo.json'
-import { Account, AccountOnchainState } from '../../interfaces/account'
+import { Account, AccountOnchainState, IAccountsController } from '../../interfaces/account'
+import { IAccountPickerController } from '../../interfaces/accountPicker'
+import { AccountOpAction } from '../../interfaces/actions'
+import { IActivityController } from '../../interfaces/activity'
+import { IAddressBookController } from '../../interfaces/addressBook'
+import { IBannerController } from '../../interfaces/banner'
+import { IDappsController } from '../../interfaces/dapp'
+import { IDefiPositionsController } from '../../interfaces/defiPositions'
+import { IDomainsController } from '../../interfaces/domains'
+import { IEmailVaultController } from '../../interfaces/emailVault'
+import { ErrorRef, Statuses } from '../../interfaces/eventEmitter'
+import { IFeatureFlagsController } from '../../interfaces/featureFlags'
 import { Fetch } from '../../interfaces/fetch'
 import { Hex } from '../../interfaces/hex'
-import { ExternalSignerControllers, Key, KeystoreSignerType } from '../../interfaces/keystore'
-import { AddNetworkRequestParams, Network } from '../../interfaces/network'
+import { IInviteController } from '../../interfaces/invite'
+import {
+  ExternalSignerControllers,
+  IKeystoreController,
+  Key,
+  KeystoreSignerType
+} from '../../interfaces/keystore'
+import { IMainController } from '../../interfaces/main'
+import { AddNetworkRequestParams, INetworksController, Network } from '../../interfaces/network'
 import { NotificationManager } from '../../interfaces/notification'
+import { IPhishingController } from '../../interfaces/phishing'
 import { Platform } from '../../interfaces/platform'
-import { RPCProvider } from '../../interfaces/provider'
-import { TraceCallDiscoveryStatus } from '../../interfaces/signAccountOp'
-import { Storage } from '../../interfaces/storage'
-import { SwapAndBridgeActiveRoute } from '../../interfaces/swapAndBridge'
+import { IPortfolioController } from '../../interfaces/portfolio'
+import { IProvidersController, RPCProvider } from '../../interfaces/provider'
+import { IRequestsController } from '../../interfaces/requests'
+import { ISelectedAccountController } from '../../interfaces/selectedAccount'
+import { ISignAccountOpController, TraceCallDiscoveryStatus } from '../../interfaces/signAccountOp'
+import { ISignMessageController } from '../../interfaces/signMessage'
+import { IStorageController, Storage } from '../../interfaces/storage'
+import { ISwapAndBridgeController, SwapAndBridgeActiveRoute } from '../../interfaces/swapAndBridge'
+import { ITransactionManagerController } from '../../interfaces/transactionManager'
+import { ITransferController } from '../../interfaces/transfer'
 import { Calls, SignUserRequest, UserRequest } from '../../interfaces/userRequest'
 import { WindowManager } from '../../interfaces/window'
 import { getDefaultSelectedAccount, isBasicAccount } from '../../libs/account/account'
@@ -55,7 +82,6 @@ import { generateUuid } from '../../utils/uuid'
 import wait from '../../utils/wait'
 import { AccountPickerController } from '../accountPicker/accountPicker'
 import { AccountsController } from '../accounts/accounts'
-import { AccountOpAction } from '../actions/actions'
 import { ActivityController } from '../activity/activity'
 import { AddressBookController } from '../addressBook/addressBook'
 import { BannerController } from '../banner/banner'
@@ -64,7 +90,7 @@ import { DefiPositionsController } from '../defiPositions/defiPositions'
 import { DomainsController } from '../domains/domains'
 import { EmailVaultController } from '../emailVault/emailVault'
 import { EstimationStatus } from '../estimation/types'
-import EventEmitter, { ErrorRef, Statuses } from '../eventEmitter/eventEmitter'
+import EventEmitter from '../eventEmitter/eventEmitter'
 import { FeatureFlagsController } from '../featureFlags/featureFlags'
 import { InviteController } from '../invite/invite'
 import { KeystoreController } from '../keystore/keystore'
@@ -84,6 +110,7 @@ import { SignAccountOpController, SigningStatus } from '../signAccountOp/signAcc
 import { SignMessageController } from '../signMessage/signMessage'
 import { StorageController } from '../storage/storage'
 import { SwapAndBridgeController } from '../swapAndBridge/swapAndBridge'
+import { TransactionManagerController } from '../transaction/transactionManager'
 import { TransferController } from '../transfer/transfer'
 import { PrivacyController } from '../privacy/privacy'
 
@@ -101,10 +128,8 @@ type CustomStatuses = {
   signAndBroadcastAccountOp: 'INITIAL' | 'SIGNING' | 'BROADCASTING' | 'SUCCESS' | 'ERROR'
 }
 
-export class MainController extends EventEmitter {
+export class MainController extends EventEmitter implements IMainController {
   #storageAPI: Storage
-
-  storage: StorageController
 
   fetch: Fetch
 
@@ -115,12 +140,6 @@ export class MainController extends EventEmitter {
 
   isReady: boolean = false
 
-  featureFlags: FeatureFlagsController
-
-  invite: InviteController
-
-  keystore: KeystoreController
-
   /**
    * Hardware wallets (usually) need an additional (external signer) controller,
    * that is app-specific (web, mobile) and is used to interact with the device.
@@ -128,50 +147,59 @@ export class MainController extends EventEmitter {
    */
   #externalSignerControllers: ExternalSignerControllers = {}
 
-  // Subcontrollers
-  networks: NetworksController
+  // sub-controllers
 
-  providers: ProvidersController
+  storage: IStorageController
 
-  accountPicker: AccountPickerController
+  featureFlags: IFeatureFlagsController
 
-  portfolio: PortfolioController
+  invite: IInviteController
 
-  defiPositions: DefiPositionsController
+  keystore: IKeystoreController
 
-  dapps: DappsController
+  networks: INetworksController
 
-  phishing: PhishingController
+  providers: IProvidersController
 
-  // Public sub-structures
-  // @TODO emailVaults
-  emailVault: EmailVaultController
+  accountPicker: IAccountPickerController
 
-  signMessage: SignMessageController
+  portfolio: IPortfolioController
 
-  swapAndBridge: SwapAndBridgeController
+  defiPositions: IDefiPositionsController
 
-  transfer: TransferController
+  dapps: IDappsController
 
   privacy: PrivacyController
 
   signAccountOp: SignAccountOpController | null = null
 
+  phishing: IPhishingController
+
+  emailVault?: IEmailVaultController
+
+  signMessage: ISignMessageController
+
+  swapAndBridge: ISwapAndBridgeController
+
+  transactionManager?: ITransactionManagerController
+
+  transfer: ITransferController
+
   signAccOpInitError: string | null = null
 
-  activity: ActivityController
+  activity: IActivityController
 
-  addressBook: AddressBookController
+  addressBook: IAddressBookController
 
-  domains: DomainsController
+  domains: IDomainsController
 
-  accounts: AccountsController
+  accounts: IAccountsController
 
-  selectedAccount: SelectedAccountController
+  selectedAccount: ISelectedAccountController
 
-  requests: RequestsController
+  requests: IRequestsController
 
-  banner: BannerController
+  banner: IBannerController
 
   accountOpsToBeConfirmed: { [key: string]: { [key: string]: AccountOp } } = {}
 
@@ -207,6 +235,7 @@ export class MainController extends EventEmitter {
     fetch,
     relayerUrl,
     velcroUrl,
+    featureFlags,
     swapApiKey,
     keystoreSigners,
     externalSignerControllers,
@@ -218,6 +247,7 @@ export class MainController extends EventEmitter {
     fetch: Fetch
     relayerUrl: string
     velcroUrl: string
+    featureFlags: Partial<FeatureFlags>
     swapApiKey: string
     keystoreSigners: Partial<{ [key in Key['type']]: KeystoreSignerType }>
     externalSignerControllers: ExternalSignerControllers
@@ -231,6 +261,7 @@ export class MainController extends EventEmitter {
     this.#notificationManager = notificationManager
 
     this.storage = new StorageController(this.#storageAPI)
+    this.featureFlags = new FeatureFlagsController(featureFlags)
     this.invite = new InviteController({ relayerUrl, fetch, storage: this.storage })
     this.keystore = new KeystoreController(platform, this.storage, keystoreSigners, windowManager)
     this.#externalSignerControllers = externalSignerControllers
@@ -251,7 +282,7 @@ export class MainController extends EventEmitter {
         this.providers.removeProvider(chainId)
       }
     })
-    this.featureFlags = new FeatureFlagsController(this.networks)
+
     this.providers = new ProvidersController(this.networks)
     this.accounts = new AccountsController(
       this.storage,
@@ -269,7 +300,8 @@ export class MainController extends EventEmitter {
     )
     this.selectedAccount = new SelectedAccountController({
       storage: this.storage,
-      accounts: this.accounts
+      accounts: this.accounts,
+      keystore: this.keystore
     })
     this.banner = new BannerController(this.storage)
     this.portfolio = new PortfolioController(
@@ -292,7 +324,14 @@ export class MainController extends EventEmitter {
       networks: this.networks,
       providers: this.providers
     })
-    this.emailVault = new EmailVaultController(this.storage, this.fetch, relayerUrl, this.keystore)
+    if (this.featureFlags.isFeatureEnabled('withEmailVaultController')) {
+      this.emailVault = new EmailVaultController(
+        this.storage,
+        this.fetch,
+        relayerUrl,
+        this.keystore
+      )
+    }
     this.accountPicker = new AccountPickerController({
       accounts: this.accounts,
       keystore: this.keystore,
@@ -407,6 +446,27 @@ export class MainController extends EventEmitter {
       this.providers.providers,
       this.networks.defaultNetworksMode
     )
+
+    if (this.featureFlags.isFeatureEnabled('withTransactionManagerController')) {
+      // TODO: [WIP] - The manager should be initialized with transfer and swap and bridge controller dependencies.
+      this.transactionManager = new TransactionManagerController({
+        accounts: this.accounts,
+        keystore: this.keystore,
+        portfolio: this.portfolio,
+        externalSignerControllers: this.#externalSignerControllers,
+        providers: this.providers,
+        selectedAccount: this.selectedAccount,
+        networks: this.networks,
+        activity: this.activity,
+        invite: this.invite,
+        serviceProviderAPI: lifiAPI,
+        storage: this.storage,
+        portfolioUpdate: () => {
+          this.updateSelectedAccountPortfolio({ forceUpdate: true })
+        }
+      })
+    }
+
     this.requests = new RequestsController({
       relayerUrl,
       accounts: this.accounts,
@@ -419,6 +479,7 @@ export class MainController extends EventEmitter {
       swapAndBridge: this.swapAndBridge,
       windowManager: this.#windowManager,
       notificationManager: this.#notificationManager,
+      transactionManager: this.transactionManager,
       getSignAccountOp: () => this.signAccountOp,
       updateSignAccountOp: (props) => {
         if (!this.signAccountOp) return
@@ -431,6 +492,7 @@ export class MainController extends EventEmitter {
       addTokensToBeLearned: this.portfolio.addTokensToBeLearned.bind(this.portfolio),
       guardHWSigning: this.#guardHWSigning.bind(this)
     })
+
     this.#initialLoadPromise = this.#load()
     paymasterFactory.init(relayerUrl, fetch, (e: ErrorRef) => {
       if (!this.signAccountOp) return
@@ -515,7 +577,7 @@ export class MainController extends EventEmitter {
 
   lock() {
     this.keystore.lock()
-    this.emailVault.cleanMagicAndSessionKeys()
+    this.emailVault?.cleanMagicAndSessionKeys()
     this.selectedAccount.setDashboardNetworkFilter(null)
   }
 
@@ -551,19 +613,21 @@ export class MainController extends EventEmitter {
       await this.requests.actions.removeActions([swapAndBridgeSigningAction.id])
     }
     await this.selectedAccount.setAccount(accountToSelect)
+    this.activity.updateAccountOpBanners()
     this.swapAndBridge.reset()
     this.transfer.resetForm()
-    await this.dapps.broadcastDappSessionEvent('accountsChanged', [toAccountAddr])
-    // forceEmitUpdate to update the getters in the FE state of the ctrl
-    await this.forceEmitUpdate()
-    await this.requests.actions.forceEmitUpdate()
-    await this.addressBook.forceEmitUpdate()
-    await this.activity.forceEmitUpdate()
+
+    // forceEmitUpdate to update the getters in the FE state of the ctrls
+    await Promise.all([
+      this.requests.actions.forceEmitUpdate(),
+      this.addressBook.forceEmitUpdate(),
+      this.dapps.broadcastDappSessionEvent('accountsChanged', [toAccountAddr]),
+      this.forceEmitUpdate()
+    ])
     // Don't await these as they are not critical for the account selection
     // and if the user decides to quickly change to another account withStatus
     // will block the UI until these are resolved.
-    this.reloadSelectedAccount({ forceUpdate: false })
-    this.emitUpdate()
+    this.reloadSelectedAccount({ forceUpdate: false, resetSelectedAccountPortfolio: false })
   }
 
   async #onAccountPickerSuccess() {
@@ -658,7 +722,7 @@ export class MainController extends EventEmitter {
           return this.isSignRequestStillActive
         },
         true,
-        (ctrl: SignAccountOpController) => {
+        (ctrl: ISignAccountOpController) => {
           this.traceCall(ctrl)
         }
       )
@@ -669,11 +733,16 @@ export class MainController extends EventEmitter {
 
   async handleSignAndBroadcastAccountOp(type: SignAccountOpType) {
     if (this.statuses.signAndBroadcastAccountOp !== 'INITIAL') {
+      const message =
+        this.statuses.signAndBroadcastAccountOp === 'SIGNING'
+          ? 'A transaction is already being signed. Please wait or contact support if the issue persists.'
+          : 'A transaction is already being broadcasted. Please wait a few seconds and try again or contact support if the issue persists.'
+
       this.emitError({
         level: 'major',
-        message: 'The signing process is already in progress.',
+        message,
         error: new Error(
-          'The signing process is already in progress. (handleSignAndBroadcastAccountOp)'
+          `The signing/broadcasting process is already in progress. (handleSignAndBroadcastAccountOp). Status: ${this.statuses.signAndBroadcastAccountOp}`
         )
       })
       return
@@ -685,7 +754,7 @@ export class MainController extends EventEmitter {
     this.statuses.signAndBroadcastAccountOp = 'SIGNING'
     this.forceEmitUpdate()
 
-    let signAccountOp: SignAccountOpController | null
+    let signAccountOp: ISignAccountOpController | null
 
     if (type === SIGN_ACCOUNT_OP_MAIN) {
       signAccountOp = this.signAccountOp
@@ -743,10 +812,6 @@ export class MainController extends EventEmitter {
       }
 
       await this.#broadcastSignedAccountOp(signAccountOp, type, signAndBroadcastCallId)
-      if (signAndBroadcastCallId === this.#signAndBroadcastCallId) {
-        this.statuses.signAndBroadcastAccountOp = 'SUCCESS'
-        await this.forceEmitUpdate()
-      }
     } catch (error: any) {
       if (signAndBroadcastCallId === this.#signAndBroadcastCallId) {
         if ('message' in error && 'level' in error && 'error' in error) {
@@ -766,12 +831,12 @@ export class MainController extends EventEmitter {
         }
         this.statuses.signAndBroadcastAccountOp = 'ERROR'
         await this.forceEmitUpdate()
+        this.statuses.signAndBroadcastAccountOp = 'INITIAL'
+        await this.forceEmitUpdate()
       }
     } finally {
-      if (signAndBroadcastCallId === this.#signAndBroadcastCallId) {
-        this.statuses.signAndBroadcastAccountOp = 'INITIAL'
+      if (this.#signAndBroadcastCallId === signAndBroadcastCallId) {
         this.#signAndBroadcastCallId = null
-        await this.forceEmitUpdate()
       }
     }
   }
@@ -787,6 +852,9 @@ export class MainController extends EventEmitter {
       txnId?: string
     }[]
   ) {
+    // No need to fetch the transaction id when there are no dapp handlers
+    if (!dappHandlers.length) return
+
     // this could take a while
     // return the txnId to the dapp once it's confirmed as return a txId
     // that could be front ran would cause bad UX on the dapp side
@@ -808,7 +876,7 @@ export class MainController extends EventEmitter {
     this.emitUpdate()
   }
 
-  #abortHWTransactionSign(signAccountOp: SignAccountOpController) {
+  #abortHWTransactionSign(signAccountOp: ISignAccountOpController) {
     if (!signAccountOp) return
 
     const isAwaitingHWSignature =
@@ -860,7 +928,7 @@ export class MainController extends EventEmitter {
     this.emitUpdate()
   }
 
-  async traceCall(signAccountOpCtrl: SignAccountOpController) {
+  async traceCall(signAccountOpCtrl: ISignAccountOpController) {
     const accountOp = signAccountOpCtrl.accountOp
     if (!accountOp) return
 
@@ -1017,7 +1085,7 @@ export class MainController extends EventEmitter {
       }
 
       const keyIterator = new LedgerKeyIterator({ controller: ledgerCtrl })
-      await this.accountPicker.setInitParams({
+      this.accountPicker.setInitParams({
         keyIterator,
         hdPathTemplate,
         pageSize: 5,
@@ -1200,14 +1268,18 @@ export class MainController extends EventEmitter {
     await this.withStatus('removeAccount', async () => this.#removeAccount(address))
   }
 
-  async reloadSelectedAccount(options?: { forceUpdate?: boolean; chainIds?: bigint[] }) {
-    const { forceUpdate = true, chainIds } = options || {}
+  async reloadSelectedAccount(options?: {
+    forceUpdate?: boolean
+    chainIds?: bigint[]
+    resetSelectedAccountPortfolio?: boolean
+  }) {
+    const { forceUpdate = true, chainIds, resetSelectedAccountPortfolio = true } = options || {}
     const networksToUpdate = chainIds
       ? this.networks.networks.filter((n) => chainIds.includes(n.chainId))
       : undefined
     if (!this.selectedAccount.account) return
 
-    this.selectedAccount.resetSelectedAccountPortfolio()
+    if (resetSelectedAccountPortfolio) this.selectedAccount.resetSelectedAccountPortfolio()
     await Promise.all([
       // When we trigger `reloadSelectedAccount` (for instance, from Dashboard -> Refresh balance icon),
       // it's very likely that the account state is already in the process of being updated.
@@ -1566,7 +1638,7 @@ export class MainController extends EventEmitter {
    *
    */
   async #broadcastSignedAccountOp(
-    signAccountOp: SignAccountOpController,
+    signAccountOp: ISignAccountOpController,
     type: SignAccountOpType,
     callId: string
   ) {
@@ -1718,7 +1790,7 @@ export class MainController extends EventEmitter {
               rawTxn: signedTxn
             }).catch((e: any) => {
               // eslint-disable-next-line no-console
-              console.log('failed to record EOA txn to relayer')
+              console.log('failed to record EOA txn to relayer', accountOp.chainId)
               // eslint-disable-next-line no-console
               console.log(e)
             })
@@ -1732,7 +1804,9 @@ export class MainController extends EventEmitter {
             identifier: multipleTxnsBroadcastRes.map((res) => res.hash).join('-')
           },
           txnId:
-            txnLength === 1 ? multipleTxnsBroadcastRes.map((res) => res.hash).join('-') : undefined
+            txnLength === 1
+              ? multipleTxnsBroadcastRes.map((res) => res.hash).join('-')
+              : multipleTxnsBroadcastRes[multipleTxnsBroadcastRes.length - 1]?.hash // undefined
         }
       } catch (error: any) {
         if (this.#signAndBroadcastCallId !== callId) return
@@ -1862,6 +1936,12 @@ export class MainController extends EventEmitter {
         message: 'No transaction response received after being broadcasted.'
       })
 
+    // Allow the user to broadcast a new transaction
+    this.statuses.signAndBroadcastAccountOp = 'SUCCESS'
+    await this.forceEmitUpdate()
+    this.statuses.signAndBroadcastAccountOp = 'INITIAL'
+    await this.forceEmitUpdate()
+
     // simulate the swap & bridge only after a successful broadcast
     if (type === SIGN_ACCOUNT_OP_SWAP || type === SIGN_ACCOUNT_OP_TRANSFER) {
       signAccountOp?.portfolioSimulate().then(() => {
@@ -1937,6 +2017,9 @@ export class MainController extends EventEmitter {
         actionId,
         isBasicAccountBroadcastingMultiple
       )
+
+      // TODO: the form should be reset in a success state in FE
+      this.transactionManager?.formState.resetForm()
     }
     // TODO<Bobby>: make a new SwapAndBridgeFormStatus "Broadcast" and
     // visualize the success page on the FE instead of resetting the form
@@ -1982,9 +2065,9 @@ export class MainController extends EventEmitter {
     provider = undefined,
     network = undefined
   }: {
-    signAccountOp: SignAccountOpController
+    signAccountOp: ISignAccountOpController
     message?: string
-    error?: Error
+    error?: Error | EmittableError | ExternalSignerError
     accountState?: AccountOnchainState
     isRelayer?: boolean
     provider?: RPCProvider
@@ -2066,7 +2149,12 @@ export class MainController extends EventEmitter {
       this.swapAndBridge.removeActiveRoute(signAccountOp.accountOp.meta.swapTxn.activeRouteId)
     }
 
-    throw new EmittableError({ level: 'major', message, error: _err || new Error(message) })
+    throw new EmittableError({
+      level: 'major',
+      message,
+      error: _err || new Error(message),
+      sendCrashReport: _err && 'sendCrashReport' in _err ? _err.sendCrashReport : undefined
+    })
   }
 
   get isSignRequestStillActive(): boolean {
@@ -2125,9 +2213,11 @@ export class MainController extends EventEmitter {
 
     const error = errors[pendingAction.type as keyof typeof errors]
 
-    await this.requests.actions.focusActionWindow()
+    // Don't reopen the action window if focusing it fails
+    // because closing it will abort the signing process
+    await this.requests.actions.focusActionWindow({ reopenIfNeeded: false })
     this.emitError({
-      level: 'major',
+      level: 'expected',
       message: error.message,
       error: new Error(error.error)
     })

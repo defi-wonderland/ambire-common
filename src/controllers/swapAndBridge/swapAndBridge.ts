@@ -2,15 +2,25 @@ import { formatUnits, isAddress, parseUnits } from 'ethers'
 
 import EmittableError from '../../classes/EmittableError'
 import SwapAndBridgeError from '../../classes/SwapAndBridgeError'
-import { ExternalSignerControllers } from '../../interfaces/keystore'
-import { Network } from '../../interfaces/network'
+import { IAccountsController } from '../../interfaces/account'
+import { AccountOpAction, Action } from '../../interfaces/actions'
+import { IActivityController } from '../../interfaces/activity'
+import { Statuses } from '../../interfaces/eventEmitter'
+import { IInviteController } from '../../interfaces/invite'
+import { ExternalSignerControllers, IKeystoreController } from '../../interfaces/keystore'
+import { INetworksController, Network } from '../../interfaces/network'
+import { IPortfolioController } from '../../interfaces/portfolio'
+import { IProvidersController } from '../../interfaces/provider'
+import { ISelectedAccountController } from '../../interfaces/selectedAccount'
 /* eslint-disable no-await-in-loop */
-import { SignAccountOpError } from '../../interfaces/signAccountOp'
+import { ISignAccountOpController, SignAccountOpError } from '../../interfaces/signAccountOp'
+import { IStorageController } from '../../interfaces/storage'
 import {
   CachedSupportedChains,
   CachedTokenListKey,
   CachedToTokenLists,
   FromToken,
+  ISwapAndBridgeController,
   SocketApiBridgeStep,
   SocketAPIBridgeUserTx,
   SwapAndBridgeActiveRoute,
@@ -57,19 +67,9 @@ import {
 } from '../../utils/numbers/formatters'
 import { generateUuid } from '../../utils/uuid'
 import wait from '../../utils/wait'
-import { AccountsController } from '../accounts/accounts'
-import { AccountOpAction, Action } from '../actions/actions'
-import { ActivityController } from '../activity/activity'
 import { EstimationStatus } from '../estimation/types'
-import EventEmitter, { Statuses } from '../eventEmitter/eventEmitter'
-import { InviteController } from '../invite/invite'
-import { KeystoreController } from '../keystore/keystore'
-import { NetworksController } from '../networks/networks'
-import { PortfolioController } from '../portfolio/portfolio'
-import { ProvidersController } from '../providers/providers'
-import { SelectedAccountController } from '../selectedAccount/selectedAccount'
+import EventEmitter from '../eventEmitter/eventEmitter'
 import { SignAccountOpController } from '../signAccountOp/signAccountOp'
-import { StorageController } from '../storage/storage'
 
 type SwapAndBridgeErrorType = {
   id: 'to-token-list-fetch-failed' | 'no-routes'
@@ -124,16 +124,16 @@ const PROTOCOLS_WITH_CONTRACT_FEE_IN_NATIVE = [
  *  - Fetching and updating quotes for token swaps and bridges.
  *  - Manages token active routes
  */
-export class SwapAndBridgeController extends EventEmitter {
-  #selectedAccount: SelectedAccountController
+export class SwapAndBridgeController extends EventEmitter implements ISwapAndBridgeController {
+  #selectedAccount: ISelectedAccountController
 
-  #networks: NetworksController
+  #networks: INetworksController
 
-  #activity: ActivityController
+  #activity: IActivityController
 
-  #invite: InviteController
+  #invite: IInviteController
 
-  #storage: StorageController
+  #storage: IStorageController
 
   #serviceProviderAPI: SocketAPI | LiFiAPI
 
@@ -219,15 +219,15 @@ export class SwapAndBridgeController extends EventEmitter {
 
   #shouldDebounceFlags: { [key: string]: boolean } = {}
 
-  #accounts: AccountsController
+  #accounts: IAccountsController
 
-  #keystore: KeystoreController
+  #keystore: IKeystoreController
 
-  #portfolio: PortfolioController
+  #portfolio: IPortfolioController
 
   #externalSignerControllers: ExternalSignerControllers
 
-  #providers: ProvidersController
+  #providers: IProvidersController
 
   /**
    * A possibly outdated instance of the SignAccountOpController. Please always
@@ -239,7 +239,7 @@ export class SwapAndBridgeController extends EventEmitter {
    * The reason is that the controller is not immediately destroyed after the
    * form changes, but instead is being updated after the route is started.
    */
-  #signAccountOpController: SignAccountOpController | null = null
+  #signAccountOpController: ISignAccountOpController | null = null
 
   /**
    * Holds all subscriptions (on update and on error) to the signAccountOpController.
@@ -286,17 +286,17 @@ export class SwapAndBridgeController extends EventEmitter {
     getUserRequests,
     getVisibleActionsQueue
   }: {
-    accounts: AccountsController
-    keystore: KeystoreController
-    portfolio: PortfolioController
+    accounts: IAccountsController
+    keystore: IKeystoreController
+    portfolio: IPortfolioController
     externalSignerControllers: ExternalSignerControllers
-    providers: ProvidersController
-    selectedAccount: SelectedAccountController
-    networks: NetworksController
-    activity: ActivityController
+    providers: IProvidersController
+    selectedAccount: ISelectedAccountController
+    networks: INetworksController
+    activity: IActivityController
     serviceProviderAPI: SocketAPI | LiFiAPI
-    storage: StorageController
-    invite: InviteController
+    storage: IStorageController
+    invite: IInviteController
     relayerUrl: string
     portfolioUpdate?: Function
     isMainSignAccountOpThrowingAnEstimationError?: Function
@@ -585,9 +585,11 @@ export class SwapAndBridgeController extends EventEmitter {
       preselectedFromToken?: Pick<TokenResult, 'address' | 'chainId'>
       preselectedToToken?: Pick<TokenResult, 'address' | 'chainId'>
       fromAmount?: string
+      activeRouteIdToDelete?: SwapAndBridgeSendTxRequest['activeRouteId']
     }
   ) {
-    const { preselectedFromToken, preselectedToToken, fromAmount } = params || {}
+    const { preselectedFromToken, preselectedToToken, fromAmount, activeRouteIdToDelete } =
+      params || {}
     await this.#initialLoadPromise
 
     if (this.sessionIds.includes(sessionId)) return
@@ -629,6 +631,11 @@ export class SwapAndBridgeController extends EventEmitter {
     // Do not await on purpose as it's not critical for the controller state to be ready
     // eslint-disable-next-line @typescript-eslint/no-floating-promises
     this.#fetchSupportedChainsIfNeeded()
+
+    if (activeRouteIdToDelete) {
+      this.removeActiveRoute(activeRouteIdToDelete, false)
+    }
+
     this.#emitUpdateIfNeeded()
   }
 
@@ -940,7 +947,8 @@ export class SwapAndBridgeController extends EventEmitter {
           fromAmount
         },
         {
-          emitUpdate: false
+          emitUpdate: false,
+          shouldIncrementFromAmountUpdateCounter: true
         }
       )
       return
@@ -1358,7 +1366,7 @@ export class SwapAndBridgeController extends EventEmitter {
           isOG: this.#invite.isOG
         })
 
-        if (quoteId !== this.#updateQuoteId) return
+        if (this.#isQuoteIdObsoleteAfterAsyncOperation(quoteId)) return
         // no updates if the user has commited
         if (this.formStatus === SwapAndBridgeFormStatus.Proceeded || this.isAutoSelectRouteDisabled)
           return
@@ -1531,6 +1539,8 @@ export class SwapAndBridgeController extends EventEmitter {
 
         return true
       } catch (error: any) {
+        if (this.#isQuoteIdObsoleteAfterAsyncOperation(quoteId)) return
+
         const { message } = getHumanReadableSwapAndBridgeError(error)
         this.emitError({ error, level: 'major', message })
 
@@ -1734,7 +1744,7 @@ export class SwapAndBridgeController extends EventEmitter {
       this.isAutoSelectRouteDisabled = isAutoSelectDisabled
     }
 
-    await this.initSignAccountOpIfNeeded()
+    if (this.#updateQuoteId) await this.initSignAccountOpIfNeeded(this.#updateQuoteId)
     this.emitUpdate()
   }
 
@@ -1827,11 +1837,14 @@ export class SwapAndBridgeController extends EventEmitter {
     }
   }
 
-  removeActiveRoute(activeRouteId: SwapAndBridgeSendTxRequest['activeRouteId']) {
+  removeActiveRoute(
+    activeRouteId: SwapAndBridgeSendTxRequest['activeRouteId'],
+    shouldEmitUpdate: boolean = true
+  ) {
     this.activeRoutes = this.activeRoutes.filter((r) => r.activeRouteId !== activeRouteId)
 
     // Purposely not using `this.#emitUpdateIfNeeded()` here, as this should always emit to update banners
-    this.emitUpdate()
+    if (shouldEmitUpdate) this.emitUpdate()
   }
 
   /**
@@ -2040,14 +2053,33 @@ export class SwapAndBridgeController extends EventEmitter {
     this.#signAccountOpSubscriptions.forEach((unsubscribe) => unsubscribe())
     this.#signAccountOpSubscriptions = []
 
-    if (!this.signAccountOpController) return
-    this.signAccountOpController.reset()
+    if (!this.#signAccountOpController) return
+    this.#signAccountOpController.reset()
     this.#signAccountOpController = null
     this.hasProceeded = false
   }
 
-  async initSignAccountOpIfNeeded(updateQuoteId?: string) {
-    // no updates if the user has commited
+  /**
+   * Guard to ensure we only proceed with data that matches the latest active quote in `this.#updateQuoteId`.
+   */
+  #isQuoteIdObsoleteAfterAsyncOperation(quoteIdGuard: string) {
+    return quoteIdGuard && quoteIdGuard !== this.#updateQuoteId
+  }
+
+  /**
+   * This method might be called multiple times due to async updates (e.g., tokens, routes, etc.).
+   * The `quoteIdGuard` acts as a guard to ensure we only proceed with data that matches
+   * the latest active quote in `this.#updateQuoteId`.
+   *
+   * If the component re-renders or receives stale async events (e.g., an old estimation result),
+   * this check prevents applying outdated data to the current form state.
+   *
+   * ⚠️ IMPORTANT: If you make changes here and they involve async operations,
+   * make sure to check `isQuoteIdObsoleteAfterAsyncOperation` afterwards
+   * to ensure you’re not acting on obsolete data.
+   */
+  async initSignAccountOpIfNeeded(quoteIdGuard: string) {
+    // no updates if the user has committed
     if (this.formStatus === SwapAndBridgeFormStatus.Proceeded) return
 
     // shouldn't happen ever
@@ -2076,11 +2108,11 @@ export class SwapAndBridgeController extends EventEmitter {
       network.chainId
     )
 
-    if (updateQuoteId && updateQuoteId !== this.#updateQuoteId) return
+    if (this.#isQuoteIdObsoleteAfterAsyncOperation(quoteIdGuard)) return
 
     const userTxn = await this.getRouteStartUserTx()
 
-    if (updateQuoteId && updateQuoteId !== this.#updateQuoteId) return
+    if (this.#isQuoteIdObsoleteAfterAsyncOperation(quoteIdGuard)) return
 
     // if no txn is provided because of a route failure (large slippage),
     // auto select the next route and continue on
@@ -2106,27 +2138,27 @@ export class SwapAndBridgeController extends EventEmitter {
       accountState
     )
 
-    if (updateQuoteId && updateQuoteId !== this.#updateQuoteId) return
+    if (this.#isQuoteIdObsoleteAfterAsyncOperation(quoteIdGuard)) return
 
     const isBridge = this.fromChainId && this.toChainId && this.fromChainId !== this.toChainId
     const calls = !isBridge ? [...userRequestCalls, ...swapOrBridgeCalls] : [...swapOrBridgeCalls]
 
-    if (this.signAccountOpController) {
+    if (this.#signAccountOpController) {
       // if the chain id has changed, we need to destroy the sign account op
       if (
-        this.signAccountOpController.accountOp.meta &&
-        this.signAccountOpController.accountOp.meta.swapTxn &&
-        this.signAccountOpController.accountOp.meta.swapTxn.chainId !== userTxn.chainId
+        this.#signAccountOpController.accountOp.meta &&
+        this.#signAccountOpController.accountOp.meta.swapTxn &&
+        this.#signAccountOpController.accountOp.meta.swapTxn.chainId !== userTxn.chainId
       ) {
         this.destroySignAccountOp()
       } else {
-        this.signAccountOpController.update({ calls })
+        this.#signAccountOpController.update({ calls })
 
         // add the real swapTxn
-        if (!this.signAccountOpController.accountOp.meta)
-          this.signAccountOpController.accountOp.meta = {}
-        this.signAccountOpController.accountOp.meta.swapTxn = userTxn
-        this.signAccountOpController.accountOp.meta.fromQuoteId = updateQuoteId
+        if (!this.#signAccountOpController.accountOp.meta)
+          this.#signAccountOpController.accountOp.meta = {}
+        this.#signAccountOpController.accountOp.meta.swapTxn = userTxn
+        this.#signAccountOpController.accountOp.meta.fromQuoteId = quoteIdGuard
         return
       }
     }
@@ -2154,7 +2186,7 @@ export class SwapAndBridgeController extends EventEmitter {
       meta: {
         swapTxn: userTxn,
         paymasterService: getAmbirePaymasterService(baseAcc, this.#relayerUrl),
-        fromQuoteId: updateQuoteId
+        fromQuoteId: quoteIdGuard
       }
     }
 
@@ -2171,7 +2203,14 @@ export class SwapAndBridgeController extends EventEmitter {
       randomId(), // the account op and the action are fabricated
       accountOp,
       () => {
-        return true
+        // this is more for a "just-in-case"
+        // stop the gas price refetch if there's no signAccountOpController
+        // this could only happen if there's a major bug and more than one
+        // instance gets created in this controller.
+        // It's arguable if it's not better to leave this to "true" instead
+        // as leaving it to true will make the problem bigger, but more easy
+        // identifiable
+        return !!this.#signAccountOpController
       },
       false,
       undefined
@@ -2206,12 +2245,12 @@ export class SwapAndBridgeController extends EventEmitter {
     this.#signAccountOpSubscriptions.push(
       this.#signAccountOpController.estimation.onUpdate(() => {
         if (
-          this.signAccountOpController?.accountOp.meta?.swapTxn?.activeRouteId &&
-          this.signAccountOpController.estimation.status === EstimationStatus.Error
+          this.#signAccountOpController?.accountOp.meta?.swapTxn?.activeRouteId &&
+          this.#signAccountOpController.estimation.status === EstimationStatus.Error
         ) {
           // eslint-disable-next-line @typescript-eslint/no-floating-promises
           this.onEstimationFailure(
-            this.signAccountOpController.accountOp.meta.swapTxn.activeRouteId
+            this.#signAccountOpController.accountOp.meta.swapTxn.activeRouteId
           )
         }
       })
@@ -2233,11 +2272,11 @@ export class SwapAndBridgeController extends EventEmitter {
     await wait(30000)
     this.#isReestimating = false
 
-    if (!this.signAccountOpController) return
-    if (!this.signAccountOpController.accountOp.meta?.swapTxn) return
+    if (!this.#signAccountOpController) return
+    if (!this.#signAccountOpController.accountOp.meta?.swapTxn) return
 
     const newestUserTxn = JSON.parse(
-      JSON.stringify(this.signAccountOpController.accountOp.meta.swapTxn)
+      JSON.stringify(this.#signAccountOpController.accountOp.meta.swapTxn)
     )
 
     // if we're refetching a quote atm, we don't execute the estimation
@@ -2250,14 +2289,14 @@ export class SwapAndBridgeController extends EventEmitter {
     // we only want a re-estimate in a stale state
     if (
       this.updateQuoteStatus === 'LOADING' ||
-      userTxn.txData !== this.signAccountOpController.accountOp.meta.swapTxn.txData
+      userTxn.txData !== this.#signAccountOpController.accountOp.meta.swapTxn.txData
     ) {
       // eslint-disable-next-line @typescript-eslint/no-floating-promises
       this.reestimate(newestUserTxn)
       return
     }
 
-    this.signAccountOpController.estimate().catch((e) => {
+    this.#signAccountOpController.estimate().catch((e) => {
       // eslint-disable-next-line no-console
       console.log('error on swap&bridge re-estimate')
       // eslint-disable-next-line no-console
